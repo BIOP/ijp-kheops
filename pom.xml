@@ -8,12 +8,12 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>27.0.2-SNAPSHOT</version>
+		<version>27.0.1</version>
 		<relativePath />
 	</parent>
 
 	<groupId>ch.epfl.biop</groupId>
-	<artifactId>DummyCommand</artifactId>
+	<artifactId>BFConvIJ2</artifactId>
 	<version>0.1.0-SNAPSHOT</version>
 
 	<name>Biop Dummy Command</name>
@@ -121,7 +121,7 @@
 
 	<properties>
 		<package-name>ch.epfl.biop.ij2command</package-name>
-		<main-class>ch.epfl.biop.ij2command.DummyCommand</main-class>
+		<main-class>ch.epfl.biop.ij2command.BFConvCommand</main-class>
 		<license.licenseName>N/A</license.licenseName>
 		<license.copyrightOwners>N/A</license.copyrightOwners>
 	</properties>
@@ -157,6 +157,10 @@
 			<artifactId>commons-io</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-legacy</artifactId>
+		</dependency>
 
 	</dependencies>
 </project>
