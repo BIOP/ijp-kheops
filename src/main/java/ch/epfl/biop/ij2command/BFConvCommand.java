@@ -1,6 +1,8 @@
 package ch.epfl.biop.ij2command;
 
+import loci.common.DebugTools;
 import loci.formats.FormatException;
+import loci.formats.ImageWriter;
 import loci.formats.tools.ImageConverter;
 import net.imagej.ImageJ;
 import org.apache.commons.io.FilenameUtils;
@@ -22,32 +24,29 @@ import java.io.IOException;
  * </p>
  */
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Dummy Command")
-public class DummyCommand implements Command {
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops - pyramidal OME")
+public class BFConvCommand implements Command {
 
     @Parameter
     UIService uiService;
 
     @Parameter
-    PlatformService ps;
-
-    @Parameter
     File input_path;
 
-    @Parameter(type = ItemIO.BOTH , style = "save", required=false)
-    File output_path;
+    @Parameter(style = "save", required=false, persist=false)
+    File output_path= null;
 
     @Parameter
-    int pyramidResolution;
+    int pyramidResolution=2;
 
     @Parameter
-    int pyramidScale;
+    int pyramidScale=3;
 
     @Parameter
-    int tileXsize;
+    int tileXsize=512;
 
     @Parameter
-    int tileYsize;
+    int tileYsize=512;
 
     @Override
     public void run() {
@@ -62,7 +61,7 @@ public class DummyCommand implements Command {
             output_path  = new File(output_dir, fileNameWithOutExt);
         }
 
-        String[] param = {  input_path.toString(), output_path.toString() ,
+        String[] params = {  input_path.toString(), output_path.toString() ,
                             "-pyramid-resolutions",  String.valueOf( pyramidResolution) ,
                             "-pyramid-scale", String.valueOf(pyramidScale),
                             "-tilex", String.valueOf(tileXsize),
@@ -71,20 +70,15 @@ public class DummyCommand implements Command {
                             } ;
 
         try {
-            ImageConverter.main( param );
+            DebugTools.enableLogging("INFO");
+            ImageConverter converter = new ImageConverter();
+            if (!converter.testConvert(new ImageWriter(), params)) System.err.println("Ooups! Something went wrong, contact BIOP team");
+            System.out.println("Jobs Done !");
         } catch (FormatException e) {
             e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        /*
-        try {
-            ps.open(new URL("https://biop.epfl.ch"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        the_answer_to_everything = 42;
-        */
 
     }
 
@@ -100,13 +94,7 @@ public class DummyCommand implements Command {
         // create the ImageJ application context with all available services
         final ImageJ ij = new ImageJ();
         ij.ui().showUI();
-        /*
-        String input_path = "C:\\FIJI_201904\\test_img.tif";
-        String output_path = "C:\\FIJI_201904\\test_img.ome.tif";
-        String[] param = {input_path, output_path ,"-pyramid-resolutions","2", "-pyramid-scale","4", "-tilex","512", "-tiley","512","-noflat" } ;
-        ImageConverter.main( param );
-        */
 
-        ij.command().run(DummyCommand.class, true);
+        ij.command().run(BFConvCommand.class, true);
     }
 }
