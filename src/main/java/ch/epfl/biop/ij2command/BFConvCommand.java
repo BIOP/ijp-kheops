@@ -24,7 +24,7 @@ import java.io.IOException;
  * </p>
  */
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops - pyramidal OME")
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops - Pyramidal OME")
 public class BFConvCommand implements Command {
 
     @Parameter
@@ -34,7 +34,7 @@ public class BFConvCommand implements Command {
     File input_path;
 
     @Parameter(style = "save", required=false, persist=false)
-    File output_path= null;
+    File output_dir;
 
     @Parameter
     int pyramidResolution=2;
@@ -51,13 +51,25 @@ public class BFConvCommand implements Command {
     @Override
     public void run() {
         uiService.show("Hello from the BIOP!");
+        if (!(output_dir == null)){
+            System.out.println( "output set to "+ output_dir.toString() );
+        } else {
+            System.out.println( "output is null " );
+        }
 
-        if ((output_path == null) || (output_path.toString().equals("") )){
-            String file_name = input_path.getName().toString();
+        String fileName = input_path.getName();
+        String fileNameWithOutExt = FilenameUtils.removeExtension( fileName) + ".ome.tiff";
+        File output_path  = new File( "null");
+
+        Boolean isOutputNull = false;
+        if (( output_dir == null) || (output_dir.toString().equals("") )) {
+            isOutputNull = true;
             File parent_dir =  new File( input_path.getParent() );
-            File output_dir = new File(parent_dir , "output"  );
+            output_path  = new File(parent_dir, fileNameWithOutExt);
+
+        } else {
+
             output_dir.mkdirs();
-            String fileNameWithOutExt = FilenameUtils.removeExtension( file_name) + ".ome.tiff";
             output_path  = new File(output_dir, fileNameWithOutExt);
         }
 
@@ -80,6 +92,10 @@ public class BFConvCommand implements Command {
             e.printStackTrace();
         }
 
+        // workaround for batch
+        if (isOutputNull){
+            output_dir = null;
+        }
     }
 
     /**
