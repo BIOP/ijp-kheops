@@ -3,7 +3,7 @@ package ch.epfl.biop.ij2command;
 import loci.formats.FormatException;
 import loci.formats.tools.ImageConverter;
 import net.imagej.ImageJ;
-
+import org.apache.commons.io.FilenameUtils;
 import org.scijava.ItemIO;
 import org.scijava.command.Command;
 import org.scijava.platform.PlatformService;
@@ -13,8 +13,6 @@ import org.scijava.ui.UIService;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
-
 
 /**
  * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
@@ -36,8 +34,8 @@ public class DummyCommand implements Command {
     @Parameter
     File input_path;
 
-    @Parameter
-    String output_path;
+    @Parameter(type = ItemIO.BOTH , style = "save", required=false)
+    File output_path;
 
     @Parameter
     int pyramidResolution;
@@ -51,12 +49,18 @@ public class DummyCommand implements Command {
     @Parameter
     int tileYsize;
 
-    @Parameter(type = ItemIO.OUTPUT)
-    String status;
-
     @Override
     public void run() {
         uiService.show("Hello from the BIOP!");
+
+        if ((output_path == null) || (output_path.toString().equals("") )){
+            String file_name = input_path.getName().toString();
+            File parent_dir =  new File( input_path.getParent() );
+            File output_dir = new File(parent_dir , "output"  );
+            output_dir.mkdirs();
+            String fileNameWithOutExt = FilenameUtils.removeExtension( file_name) + ".ome.tiff";
+            output_path  = new File(output_dir, fileNameWithOutExt);
+        }
 
         String[] param = {  input_path.toString(), output_path.toString() ,
                             "-pyramid-resolutions",  String.valueOf( pyramidResolution) ,
@@ -81,7 +85,7 @@ public class DummyCommand implements Command {
         }
         the_answer_to_everything = 42;
         */
-        status = "Done!";
+
     }
 
     /**
