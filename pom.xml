@@ -33,8 +33,8 @@
 
 	<developers>
 		<developer>
-			<id>oburri</id>
-			<name>Olivier Burri</name>
+			<id>romainGuiet</id>
+			<name>Romain Guiet</name>
 			<url>http://biop.epfl.ch/INFO_Facility.html</url>
 			<roles>
 				<role>founder</role>
@@ -61,8 +61,8 @@
 			</roles>
 		</developer>
 		<developer>
-			<id>romainGuiet</id>
-			<name>Romain Guiet</name>
+			<id>oburri</id>
+			<name>Olivier Burri</name>
 			<url>http://biop.epfl.ch/INFO_Facility.html</url>
 			<roles>
 				<role>founder</role>
