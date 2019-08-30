@@ -43,7 +43,7 @@ public class BFConvCommand implements Command {
     @Parameter(label="Select an input file (required)" , required=false)
     File input_path;
 
-    @Parameter(label="Specify an output folder (optional)", style = "save", required=false, persist=false)
+    @Parameter(label="Specify an output folder (optional)", style = "directory", required=false, persist=false)
     File output_dir;
 
     @Parameter(label="Pyramid level(s)")
