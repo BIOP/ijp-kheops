@@ -6,6 +6,7 @@ import loci.formats.ImageWriter;
 import loci.formats.tools.ImageConverter;
 import net.imagej.ImageJ;
 import org.apache.commons.io.FilenameUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.scijava.ItemIO;
 import org.scijava.command.Command;
 import org.scijava.platform.PlatformService;
@@ -55,6 +56,9 @@ public class BFConvCommand implements Command {
     @Parameter (label="Individual Tile size (in pixel)")
     int tileSize=512;
 
+    @Parameter (label="Save as BIG  ome.tiff?")
+    boolean bigtiff=true;
+
     public void openDoc(){
         try {
             // url : go.epfl.ch/ijp-kheops
@@ -90,8 +94,11 @@ public class BFConvCommand implements Command {
                     "-pyramid-scale", String.valueOf(pyramidScale),
                     "-tilex", String.valueOf(tileSize),
                     "-tiley", String.valueOf(tileSize),
-                    "-noflat"
+                    "-noflat",
             };
+
+            if (bigtiff) params = ArrayUtils.add( params, "-bigtiff" );
+            if (bigtiff) params = ArrayUtils.add( params, "-bigtiff" );
 
             try {
                 DebugTools.enableLogging("INFO");
