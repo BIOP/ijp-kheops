@@ -7,7 +7,6 @@ import loci.formats.tools.ImageConverter;
 import net.imagej.ImageJ;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
-import org.scijava.ItemIO;
 import org.scijava.command.Command;
 import org.scijava.platform.PlatformService;
 import org.scijava.plugin.Parameter;
@@ -15,11 +14,8 @@ import org.scijava.plugin.Plugin;
 import org.scijava.ui.UIService;
 import org.scijava.widget.Button;
 
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.URL;
-
-import static org.scijava.ItemVisibility.MESSAGE;
 
 /**
  * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
@@ -74,6 +70,11 @@ public class BFConvCommand implements Command {
         //uiService.show("Hello from the BIOP!");
 
             String fileName = input_path.getName();
+
+            //-------------------- Patch for ics/ids handling bug : cf https://forum.image.sc/t/trouble-with-converter-testconvert-from-bio-formats-tools/29189/4
+            patchHuygensIcsIds(false);
+            //--------------------
+
             String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
             File output_path = new File("null");
 
@@ -117,6 +118,66 @@ public class BFConvCommand implements Command {
                 output_dir = null;
             }
 
+            //-------------------- Patch for ics/ids handling bug : cf https://forum.image.sc/t/trouble-with-converter-testconvert-from-bio-formats-tools/29189/4
+            patchHuygensIcsIds(true);
+            //--------------------
+
+    }
+
+    public void patchHuygensIcsIds(boolean reverse) {
+        if (FilenameUtils.isExtension(this.input_path.getName(),new String[]{"ics","ids"})) {
+            // We have an ics / ids file
+            // Let's open the ics File
+            String fNamePath = FilenameUtils.removeExtension(input_path.getAbsolutePath())+".ics";
+            System.out.println(fNamePath);
+
+            File f = new File(fNamePath);
+
+            String tmpFileName = FilenameUtils.removeExtension(input_path.getAbsolutePath())+".tmp";
+
+            BufferedReader br = null;
+            BufferedWriter bw = null;
+            try {
+                br = new BufferedReader(new FileReader(fNamePath));
+                bw = new BufferedWriter(new FileWriter(tmpFileName));
+                String line;
+                while ((line = br.readLine()) != null) {
+                    if (reverse) {
+                        if (line.contains("history\tsoftware\tSDisabledVI-Huygens")) {
+                            line = "history\tsoftware\tSVI-Huygens";
+                        }
+                    } else {
+                        if (line.contains("history\tsoftware\tSVI-Huygens")) {
+                            line = "history\tsoftware\tSDisabledVI-Huygens";
+                        }
+                    }
+                    bw.write(line+"\n");
+                }
+            } catch (Exception e) {
+                return;
+            } finally {
+                try {
+                    if(br != null)
+                        br.close();
+                } catch (IOException e) {
+                    //
+                }
+                try {
+                    if(bw != null)
+                        bw.close();
+                } catch (IOException e) {
+                    //
+                }
+            }
+
+            // Once everything is complete, delete old file..
+            File oldFile = new File(fNamePath);
+            oldFile.delete();
+
+            // And rename tmp file's name to old file name
+            File newFile = new File(tmpFileName);
+            newFile.renameTo(oldFile);
+        }
     }
 
     /**
