@@ -1,10 +1,26 @@
 package ch.epfl.biop.ij2command;
 
+import loci.common.Constants;
 import loci.common.DebugTools;
-import loci.formats.FormatException;
-import loci.formats.ImageWriter;
+import loci.common.Location;
+import loci.common.services.DependencyException;
+import loci.common.services.ServiceException;
+import loci.common.services.ServiceFactory;
+import loci.formats.*;
+import loci.formats.meta.IMetadata;
+import loci.formats.meta.MetadataRetrieve;
+import loci.formats.meta.MetadataStore;
+import loci.formats.out.TiffWriter;
+import loci.formats.services.OMEXMLService;
+import loci.formats.services.OMEXMLServiceImpl;
+import loci.formats.tools.CommandLineTools;
 import loci.formats.tools.ImageConverter;
 import net.imagej.ImageJ;
+import ome.xml.meta.OMEXMLMetadataRoot;
+import ome.xml.model.Image;
+import ome.xml.model.Pixels;
+import ome.xml.model.enums.PixelType;
+import ome.xml.model.primitives.PositiveInteger;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.scijava.command.Command;
@@ -67,12 +83,9 @@ public class BFConvCommand implements Command {
 
     @Override
     public void run() {
-        //uiService.show("Hello from the BIOP!");
-
             String fileName = input_path.getName();
 
-            //-------------------- Patch for ics/ids handling bug : cf https://forum.image.sc/t/trouble-with-converter-testconvert-from-bio-formats-tools/29189/4
-            patchHuygensIcsIds(false);
+
             //--------------------
 
             String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
@@ -103,10 +116,23 @@ public class BFConvCommand implements Command {
 
             try {
                 DebugTools.enableLogging("INFO");
-                ImageConverter converter = new ImageConverter();
-                if (!converter.testConvert(new ImageWriter(), params))
-                    System.err.println("Ooups! Something went wrong, contact BIOP team");
-                System.out.println("Jobs Done !");
+                if (isHuygensIcsIds()) {
+                    //-------------------- Patch for ics/ids handling bug : cf https://forum.image.sc/t/trouble-with-converter-testconvert-from-bio-formats-tools/29189/4
+                    System.out.println("Applying ICS / IDS Huygens patch, this patch should disappear with the release of BioFormats v > 6.3.0");
+                    ImageConverter_IY converter = new ImageConverter_IY();
+                    if (!converter.testConvert(new ImageWriter(), params)) {
+                        System.err.println("Ooups! Something went wrong, contact BIOP team");
+                    } else {
+                        System.out.println("Jobs Done !");
+                    }
+                } else {
+                    ImageConverter converter = new ImageConverter();
+                    if (!converter.testConvert(new ImageWriter(), params)) {
+                        System.err.println("Ooups! Something went wrong, contact BIOP team");
+                    } else {
+                        System.out.println("Jobs Done !");
+                    }
+                }
             } catch (FormatException e) {
                 e.printStackTrace();
             } catch (IOException e) {
@@ -118,43 +144,27 @@ public class BFConvCommand implements Command {
                 output_dir = null;
             }
 
-            //-------------------- Patch for ics/ids handling bug : cf https://forum.image.sc/t/trouble-with-converter-testconvert-from-bio-formats-tools/29189/4
-            patchHuygensIcsIds(true);
-            //--------------------
-
     }
 
-    public void patchHuygensIcsIds(boolean reverse) {
+    public boolean isHuygensIcsIds() {
+        boolean isIcsAndContainsSVILine = false;
         if (FilenameUtils.isExtension(this.input_path.getName(),new String[]{"ics","ids"})) {
             // We have an ics / ids file
             // Let's open the ics File
             String fNamePath = FilenameUtils.removeExtension(input_path.getAbsolutePath())+".ics";
             System.out.println(fNamePath);
 
-            File f = new File(fNamePath);
-
-            String tmpFileName = FilenameUtils.removeExtension(input_path.getAbsolutePath())+".tmp";
-
             BufferedReader br = null;
-            BufferedWriter bw = null;
             try {
                 br = new BufferedReader(new FileReader(fNamePath));
-                bw = new BufferedWriter(new FileWriter(tmpFileName));
                 String line;
                 while ((line = br.readLine()) != null) {
-                    if (reverse) {
-                        if (line.contains("history\tsoftware\tSDisabledVI-Huygens")) {
-                            line = "history\tsoftware\tSVI-Huygens";
-                        }
-                    } else {
                         if (line.contains("history\tsoftware\tSVI-Huygens")) {
-                            line = "history\tsoftware\tSDisabledVI-Huygens";
+                            isIcsAndContainsSVILine = true;
                         }
-                    }
-                    bw.write(line+"\n");
                 }
             } catch (Exception e) {
-                return;
+                return false;
             } finally {
                 try {
                     if(br != null)
@@ -162,22 +172,9 @@ public class BFConvCommand implements Command {
                 } catch (IOException e) {
                     //
                 }
-                try {
-                    if(bw != null)
-                        bw.close();
-                } catch (IOException e) {
-                    //
-                }
             }
-
-            // Once everything is complete, delete old file..
-            File oldFile = new File(fNamePath);
-            oldFile.delete();
-
-            // And rename tmp file's name to old file name
-            File newFile = new File(tmpFileName);
-            newFile.renameTo(oldFile);
         }
+        return isIcsAndContainsSVILine;
     }
 
     /**
@@ -195,4 +192,6 @@ public class BFConvCommand implements Command {
 
         ij.command().run(BFConvCommand.class, true);
     }
+
+
 }
