@@ -23,6 +23,7 @@ import ome.xml.model.enums.PixelType;
 import ome.xml.model.primitives.PositiveInteger;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.platform.PlatformService;
 import org.scijava.plugin.Parameter;
@@ -50,8 +51,8 @@ public class BFConvCommand implements Command {
     @Parameter
     PlatformService ps;
 
-    @Parameter( label = "Read Kheops Documentation", callback = "openDoc", required = false, persist = false )
-    private Button chooseFields;
+    @Parameter( label = "Read Kheops Documentation", visibility= ItemVisibility.TRANSIENT , callback = "openDoc", required = false, persist = false )
+    private Button docButton;
 
     @Parameter(label="Select an input file (required)" , required=false)
     File input_path;
