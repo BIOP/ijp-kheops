@@ -1,26 +1,9 @@
 package ch.epfl.biop.ij2command;
 
-import loci.common.Constants;
 import loci.common.DebugTools;
-import loci.common.Location;
-import loci.common.services.DependencyException;
-import loci.common.services.ServiceException;
-import loci.common.services.ServiceFactory;
 import loci.formats.*;
-import loci.formats.meta.IMetadata;
-import loci.formats.meta.MetadataRetrieve;
-import loci.formats.meta.MetadataStore;
-import loci.formats.out.TiffWriter;
-import loci.formats.services.OMEXMLService;
-import loci.formats.services.OMEXMLServiceImpl;
-import loci.formats.tools.CommandLineTools;
 import loci.formats.tools.ImageConverter;
 import net.imagej.ImageJ;
-import ome.xml.meta.OMEXMLMetadataRoot;
-import ome.xml.model.Image;
-import ome.xml.model.Pixels;
-import ome.xml.model.enums.PixelType;
-import ome.xml.model.primitives.PositiveInteger;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.scijava.ItemVisibility;
@@ -42,17 +25,8 @@ import java.net.URL;
  * </p>
  */
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops - Pyramidal OME")
-public class BFConvCommand implements Command {
-
-    @Parameter
-    UIService uiService;
-
-    @Parameter
-    PlatformService ps;
-
-    @Parameter( label = "Read Kheops Documentation", visibility= ItemVisibility.TRANSIENT , callback = "openDoc", required = false, persist = false )
-    private Button docButton;
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME")
+public class KheopsMainCommand implements Command {
 
     @Parameter(label="Select an input file (required)" , required=false)
     File input_path;
@@ -71,16 +45,6 @@ public class BFConvCommand implements Command {
 
     @Parameter (label="Save as BIG  ome.tiff?")
     boolean bigtiff=true;
-
-    public void openDoc(){
-        try {
-            // url : go.epfl.ch/ijp-kheops
-            ps.open(new URL("https://c4science.ch/w/bioimaging_and_optics_platform_biop/image-processing/imagej_tools/ijp-kheops/"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
 
     @Override
     public void run() {
@@ -191,7 +155,7 @@ public class BFConvCommand implements Command {
         final ImageJ ij = new ImageJ();
         ij.ui().showUI();
 
-        ij.command().run(BFConvCommand.class, true);
+        ij.command().run(KheopsMainCommand.class, true);
     }
 
 
