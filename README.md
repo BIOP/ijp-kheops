@@ -30,7 +30,7 @@ To specify the size of the tiles
 
 ### On multiple files (Batch Mode) </h3> 
 
-1.Use the //Search// tool
+1.Use the `Search` tool
 
 <img src="https://github.com/BIOP/ijp-kheops/raw/master/images/2-image_fiji_main.png" title="Kheops on Single File" width="25%" align="center">
 
@@ -40,11 +40,11 @@ To specify the size of the tiles
 <img src="https://github.com/BIOP/ijp-kheops/raw/master/images/3-image_multi_files.png" title="Kheops on Single File" width="25%" align="center">
 
 
-3.Clic {key Batch }
+3.Clic `Batch`
 
 4.Select images
 
-<img src="https://github.com/BIOP/ijp-kheops/raw/master/images/4-image_multi_select.png.png" title="Kheops on Single File" width="25%" align="center">
+<img src="https://github.com/BIOP/ijp-kheops/raw/master/images/4-image_multi_select.png" title="Kheops on Single File" width="25%" align="center">
 
 
 5.Clic  `Open`
