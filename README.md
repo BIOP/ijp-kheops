@@ -1,6 +1,6 @@
 
 
-**Kheops** is an ImageJ plugin (IJ2 command based) to **convert image file(s) to pyramidal ome.tiff**. 
+**Kheops** is an ImageJ plugin (IJ2 Command based) to **convert image file(s) to pyramidal ome.tiff**. 
 
 <img src="https://github.com/BIOP/ijp-kheops/raw/master/images/0-kheops_logo.png" title="Kheops" width="50%" align="center">
 
@@ -17,10 +17,10 @@
 Selec the file you want to convert to a pyramidal ome.tiff 
 
 **Specify an output folder (optional)**
-By default, it will save the ome.tiff in the same fodler 
+By default, it will save the ome.tiff in the same folder 
 
 **Pyramid level(s)**
-To specify how many downsampling levels of the image will be created.
+To specify how many downsampling levels of the image will be created. 
 
 **Pyramid level downsampling factor**
 To specify the downsampling factor to use between levels.
