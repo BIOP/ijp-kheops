@@ -57,10 +57,6 @@ You arrive on our c4science page.
 
 Please install using the [BIOP dev update site ](https://c4science.ch/w/bioimaging_and_optics_platform_biop/image-processing/imagej_tools/update-site/)
 
-## Other Sources  
-
-[c4science repo](https://c4science.ch/source/ijp-kheops/)
-
 ## Misc.
 
 This is an example Maven project implementing an ImageJ command with a Pom adapted for PT-BIOP at EPFL.
