@@ -1,6 +1,8 @@
-**Kheops** is an ImageJ plugin (IJ2 command based) to **convert image file(s) to pyramidal ome.tiff**. 
 
-<img src="https://github.com/BIOP/ijp-kheops/images/0-kheops_logo.png" title="Kheops" width="25%" align="center">
+
+**Kheops** is an ImageJ plugin (IJ2 command based) to **convert image file(s) to pyramidal ome.tiff**. 
+
+<img src="https://github.com/BIOP/ijp-kheops/raw/master/images/0-kheops_logo.png" title="Kheops" width="25%" align="center">
 
 # Kheops
 
