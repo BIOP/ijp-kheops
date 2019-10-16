@@ -10,7 +10,7 @@
 
 ### On a single file  
  
-<img src="https://github.com/BIOP/ijp-kheops/images/1-image_single_file.png" title="Kheops on Single File" width="25%" align="center">
+<img src="https://github.com/BIOP/ijp-kheops/raw/master/images/1-image_single_file.png" title="Kheops on Single File" width="25%" align="center">
 
 
 **Select an input file (required)**
@@ -32,19 +32,19 @@ To specify the size of the tiles
 
 1.Use the //Search// tool
 
-<img src="https://github.com/BIOP/ijp-kheops/images/2-image_fiji_main.png" title="Kheops on Single File" width="25%" align="center">
+<img src="https://github.com/BIOP/ijp-kheops/raw/master/images/2-image_fiji_main.png" title="Kheops on Single File" width="25%" align="center">
 
 
 2.Search for Kheops
 
-<img src="https://github.com/BIOP/ijp-kheops/images/3-image_multi_files.png" title="Kheops on Single File" width="25%" align="center">
+<img src="https://github.com/BIOP/ijp-kheops/raw/master/images/3-image_multi_files.png" title="Kheops on Single File" width="25%" align="center">
 
 
 3.Clic {key Batch }
 
 4.Select images
 
-<img src="https://github.com/BIOP/ijp-kheops/images/4-image_multi_select.png.png" title="Kheops on Single File" width="25%" align="center">
+<img src="https://github.com/BIOP/ijp-kheops/raw/master/images/4-image_multi_select.png.png" title="Kheops on Single File" width="25%" align="center">
 
 
 5.Clic  `Open`
