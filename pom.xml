@@ -14,7 +14,7 @@
 
 	<groupId>ch.epfl.biop</groupId>
 	<artifactId>ijp-kheops</artifactId>
-	<version>0.1.4-SNAPSHOT</version>
+	<version>0.1.4</version>
 
 	<name>BIOP Kheops Command</name>
 	<description>IJ2 command make use of bioformats convert to create pyramidal ome.tiff</description>
@@ -147,7 +147,7 @@
 		<dependency>
 			<groupId>ome</groupId>
 			<artifactId>bio-formats-tools</artifactId>
-			<version>6.2.1</version>
+			<version>6.3.0</version>
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/org.apache.commons/commons-io -->
