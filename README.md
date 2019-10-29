@@ -53,7 +53,7 @@ You arrive on our c4science page.
 
 ## Install
 
-Please install using the [BIOP dev update site ](https://c4science.ch/w/bioimaging_and_optics_platform_biop/image-processing/imagej_tools/update-site/)
+Please install using the [BIOP update site ](https://c4science.ch/w/bioimaging_and_optics_platform_biop/image-processing/imagej_tools/update-site/)
 
 ## Macro Language Code Example
 
@@ -63,8 +63,8 @@ output_dir = File.getParent(input_path);
 
 tic = getTime();
 run("Kheops - Convert File to Pyramidal OME", "input_path=["+input_path+"] output_dir=["+output_dir+"] pyramidresolution=3 pyramidscale=2 tilesize=64 bigtiff=true");
-
 toc = getTime();
+
 print("Hoyo Hoyo, the pyramid was created in "+ -1*(tic-toc)/1000+" sec ");
 ```
 
