@@ -1,5 +1,4 @@
 
-
 **Kheops** is an ImageJ plugin (IJ2 Command based) to **convert image file(s) to pyramidal ome.tiff**. 
 
 <img src="https://github.com/BIOP/ijp-kheops/raw/master/images/0-kheops_logo.png" title="Kheops" width="50%" align="center">
@@ -11,7 +10,6 @@
 ### On a single file  
  
 <img src="https://github.com/BIOP/ijp-kheops/raw/master/images/1-image_single_file.png" title="Kheops on Single File" width="50%" align="center">
-
 
 **Select an input file (required)**
 Selec the file you want to convert to a pyramidal ome.tiff 
@@ -57,8 +55,20 @@ You arrive on our c4science page.
 
 Please install using the [BIOP dev update site ](https://c4science.ch/w/bioimaging_and_optics_platform_biop/image-processing/imagej_tools/update-site/)
 
+## Macro Language Code Example
+
+```
+//@File(Label="Select a file", style="" ) input_path
+output_dir = File.getParent(input_path);
+
+tic = getTime();
+run("Kheops - Convert File to Pyramidal OME", "input_path=["+input_path+"] output_dir=["+output_dir+"] pyramidresolution=3 pyramidscale=2 tilesize=64 bigtiff=true");
+
+toc = getTime();
+print("Hoyo Hoyo, the pyramid was created in "+ -1*(tic-toc)/1000+" sec ");
+```
+
+
 ## Misc.
 
-This is an example Maven project implementing an ImageJ command with a Pom adapted for PT-BIOP at EPFL.
-
-This project was initially cloned from https://github.com/imagej/example-imagej-command.git (11th October 2018)
+This project was initially cloned from https://github.com/imagej/example-imagej-command.git
