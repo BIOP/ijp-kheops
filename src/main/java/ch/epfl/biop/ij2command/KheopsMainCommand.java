@@ -77,11 +77,10 @@ public class KheopsMainCommand implements Command {
             };
 
             if (bigtiff) params = ArrayUtils.add( params, "-bigtiff" );
-            if (bigtiff) params = ArrayUtils.add( params, "-bigtiff" );
 
             try {
                 DebugTools.enableLogging("INFO");
-                if (isHuygensIcsIds()) {
+                if ( isHuygensIcsIds() ) {
                     //-------------------- Patch for ics/ids handling bug : cf https://forum.image.sc/t/trouble-with-converter-testconvert-from-bio-formats-tools/29189/4
                     System.out.println("Applying ICS / IDS Huygens patch, this patch should disappear with the release of BioFormats v > 6.3.0");
                     ImageConverter_IY converter = new ImageConverter_IY();
