@@ -150,6 +150,12 @@
 			<version>6.3.0</version>
 		</dependency>
 
+		<dependency>
+			<groupId>ome</groupId>
+			<artifactId>formats-bsd</artifactId>
+			<version>6.3.0</version>
+		</dependency>
+
 		<!-- https://mvnrepository.com/artifact/org.apache.commons/commons-io -->
 		<dependency>
 			<groupId>commons-io</groupId>
