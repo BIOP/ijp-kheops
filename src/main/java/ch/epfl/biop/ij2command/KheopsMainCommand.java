@@ -54,7 +54,7 @@ public class KheopsMainCommand implements Command {
             //--------------------
 
             String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
-            File output_path = new File("null");
+            File output_path;
 
             Boolean isOutputNull = false;
             if ((output_dir == null) || (output_dir.toString().equals(""))) {
@@ -80,22 +80,11 @@ public class KheopsMainCommand implements Command {
 
             try {
                 DebugTools.enableLogging("INFO");
-                if ( false ) {//isHuygensIcsIds() ) {
-                    //-------------------- Patch for ics/ids handling bug : cf https://forum.image.sc/t/trouble-with-converter-testconvert-from-bio-formats-tools/29189/4
-                    System.out.println("Applying ICS / IDS Huygens patch, this patch should disappear with the release of BioFormats v > 6.3.0");
-                    ImageConverter_IY converter = new ImageConverter_IY();
-                    if (!converter.testConvert(new ImageWriter(), params)) {
-                        System.err.println("Ooups! Something went wrong, contact BIOP team");
-                    } else {
-                        System.out.println("Jobs Done !");
-                    }
+                ImageConverter converter = new ImageConverter();
+                if (!converter.testConvert(new ImageWriter(), params)) {
+                    System.err.println("Ooups! Something went wrong, contact BIOP team");
                 } else {
-                    ImageConverter converter = new ImageConverter();
-                    if (!converter.testConvert(new ImageWriter(), params)) {
-                        System.err.println("Ooups! Something went wrong, contact BIOP team");
-                    } else {
-                        System.out.println("Jobs Done !");
-                    }
+                    System.out.println("Jobs Done !");
                 }
             } catch (FormatException e) {
                 e.printStackTrace();
@@ -110,37 +99,6 @@ public class KheopsMainCommand implements Command {
 
     }
 
-    public boolean isHuygensIcsIds() {
-        boolean isIcsAndContainsSVILine = false;
-        if (FilenameUtils.isExtension(this.input_path.getName(),new String[]{"ics","ids"})) {
-            // We have an ics / ids file
-            // Let's open the ics File
-            String fNamePath = FilenameUtils.removeExtension(input_path.getAbsolutePath())+".ics";
-            System.out.println(fNamePath);
-
-            BufferedReader br = null;
-            try {
-                br = new BufferedReader(new FileReader(fNamePath));
-                String line;
-                while ((line = br.readLine()) != null) {
-                        if (line.contains("history\tsoftware\tSVI-Huygens")) {
-                            isIcsAndContainsSVILine = true;
-                        }
-                }
-            } catch (Exception e) {
-                return false;
-            } finally {
-                try {
-                    if(br != null)
-                        br.close();
-                } catch (IOException e) {
-                    //
-                }
-            }
-        }
-        return isIcsAndContainsSVILine;
-    }
-
     /**
      * This main function serves for development purposes.
      * It allows you to run the plugin immediately out of
@@ -153,7 +111,6 @@ public class KheopsMainCommand implements Command {
         // create the ImageJ application context with all available services
         final ImageJ ij = new ImageJ();
         ij.ui().showUI();
-
         ij.command().run(KheopsMainCommand.class, true);
     }
 
