@@ -1,6 +1,8 @@
 
 **Kheops** is an ImageJ plugin (IJ2 Command based) to **convert image file(s) to pyramidal ome.tiff**. 
 
+It wraps [`bftools` from BioFormats](https://www.openmicroscopy.org/bio-formats/downloads/) into a FIJI Command, that can be installed through the [BIOP update site ](https://c4science.ch/w/bioimaging_and_optics_platform_biop/image-processing/imagej_tools/update-site/).
+
 <img src="https://github.com/BIOP/ijp-kheops/raw/master/images/0-kheops_logo.png" title="Kheops" width="50%" align="center">
 
 # Kheops
