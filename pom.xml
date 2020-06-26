@@ -26,7 +26,7 @@
 	</organization>
 	<licenses>
 		<license>
-			<name>GPL</name>
+			<name>BSD-3-Clause</name>
 		</license>
 	</licenses>
 
@@ -111,7 +111,7 @@
 	
 	<issueManagement>
 		<system>GitHub Issues</system>
-		<url></url>
+		<url>https://github.com/BIOP/ijp-kheops/issues</url>
 	</issueManagement>
 
 	<ciManagement>
@@ -121,8 +121,8 @@
 	<properties>
 		<package-name>ch.epfl.biop.ij2command</package-name>
 		<main-class>ch.epfl.biop.ij2command.KheopsMainCommand</main-class>
-		<license.licenseName>N/A</license.licenseName>
-		<license.copyrightOwners>N/A</license.copyrightOwners>
+		<license.licenseName>BSD-3-Clause</license.licenseName>
+		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 	</properties>
 
 	<repositories>
