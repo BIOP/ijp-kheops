@@ -41,7 +41,7 @@ public class KheopsAdvCommand implements Command {
     int tileSize=512;
 
     @Parameter (label="serie from file")
-    int series=1;
+    int series=0;
 
     @Parameter (label="Compression" , choices = { "Uncompressed", "LZW", "JPEG-2000", "JPEG-2000 Lossy", "JPEG", "zlib" })
     String compression="Uncompressed";
