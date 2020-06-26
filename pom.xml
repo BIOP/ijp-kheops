@@ -26,7 +26,9 @@
 	</organization>
 	<licenses>
 		<license>
-			<name>BSD-3-Clause</name>
+			<name>GNU General Public License v2+</name>
+			<url>http://www.gnu.org/licenses/gpl-2.0.txt</url>
+			<distribution>repo</distribution>
 		</license>
 	</licenses>
 
@@ -34,7 +36,7 @@
 		<developer>
 			<id>romainGuiet</id>
 			<name>Romain Guiet</name>
-			<url>http://biop.epfl.ch/INFO_Facility.html</url>
+			<url>https://people.epfl.ch/romain.guiet</url>
 			<roles>
 				<role>founder</role>
 				<role>lead</role>
@@ -62,7 +64,7 @@
 		<developer>
 			<id>oburri</id>
 			<name>Olivier Burri</name>
-			<url>http://biop.epfl.ch/INFO_Facility.html</url>
+			<url>https://people.epfl.ch/olivier.burri</url>
 			<roles>
 				<role>founder</role>
 				<role>lead</role>
@@ -121,7 +123,7 @@
 	<properties>
 		<package-name>ch.epfl.biop.ij2command</package-name>
 		<main-class>ch.epfl.biop.ij2command.KheopsMainCommand</main-class>
-		<license.licenseName>BSD-3-Clause</license.licenseName>
+		<license.licenseName>gpl_v2</license.licenseName>
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 	</properties>
 
@@ -147,13 +149,13 @@
 		<dependency>
 			<groupId>ome</groupId>
 			<artifactId>bio-formats-tools</artifactId>
-			<version>6.3.0</version>
+			<version>6.3.1</version>
 		</dependency>
 
 		<dependency>
 			<groupId>ome</groupId>
 			<artifactId>formats-bsd</artifactId>
-			<version>6.3.0</version>
+			<version>6.3.1</version>
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/org.apache.commons/commons-io -->
