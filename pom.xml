@@ -111,6 +111,9 @@
 
 		<ome-common.version>6.0.4</ome-common.version>
 		<bio-formats-tools.version>6.5.0</bio-formats-tools.version>
+
+		<!-- NB: Deploy releases to the SciJava Maven repository. -->
+		<releaseProfiles>deploy-to-scijava</releaseProfiles>
 	</properties>
 
 	<dependencies>
