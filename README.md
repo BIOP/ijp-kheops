@@ -1,3 +1,5 @@
+[![](https://travis-ci.com/BIOP/ijp-kheops.svg?branch=master)](https://travis-ci.com/BIOP/ijp-kheops)
+
 
 **Kheops** is an ImageJ plugin (IJ2 Command based) to **convert image file(s) to pyramidal ome.tiff**. 
 

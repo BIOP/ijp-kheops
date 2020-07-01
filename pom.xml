@@ -1,14 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
-		http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>27.0.1</version>
+		<version>29.0.0-beta-3</version>
 		<relativePath />
 	</parent>
 
@@ -50,7 +47,7 @@
 		<developer>
 			<id>nicokiaru</id>
 			<name>Nicolas Chiaruttini</name>
-			<url>http://imagej.net/User:NicoKiaru</url>
+			<url>https://imagej.net/User:NicoKiaru</url>
 			<roles>
 				<role>founder</role>
 				<role>lead</role>
@@ -78,22 +75,9 @@
 	</developers>
 	<contributors>
 		<contributor>
-			<name>Romain Guiet</name>
-			<url>http://biop.epfl.ch/INFO_Facility.html</url>
-			<roles><role>founder</role></roles>
-			<properties><id>romainGuiet</id></properties>
-		</contributor>
-		<contributor>
-			<name>Nicolas Chiaruttini</name>
-			<url>http://biop.epfl.ch/INFO_Facility.html</url>
-			<roles><role>founder</role></roles>
-			<properties><id>NicoKiaru</id></properties>
-		</contributor>
-		<contributor>
-			<name>Olivier Burri</name>
-			<url>http://biop.epfl.ch/INFO_Facility.html</url>
-			<roles><role>founder</role></roles>
-			<properties><id>oburri</id></properties>
+			<name>Jan Eglinger</name>
+			<url>https://imagej.net/User:Eglinger</url>
+			<properties><id>imagejan</id></properties>
 		</contributor>
 	</contributors>
 
@@ -105,19 +89,18 @@
 	</mailingLists>
 
 	<scm>
-		<connection>scm:git:git://github.com/</connection>
-		<developerConnection>scm:git:git@github.com:</developerConnection>
+		<connection>scm:git:git://github.com/BIOP/ijp-kheops</connection>
+		<developerConnection>scm:git:git@github.com:BIOP/ijp-kheops</developerConnection>
 		<tag>HEAD</tag>
-		<url>https://github.com/</url>
+		<url>https://github.com/BIOP/ijp-kheops</url>
 	</scm>
-	
 	<issueManagement>
 		<system>GitHub Issues</system>
 		<url>https://github.com/BIOP/ijp-kheops/issues</url>
 	</issueManagement>
-
 	<ciManagement>
-		<system>None</system>
+		<system>Travis CI</system>
+		<url>https://travis-ci.com/BIOP/ijp-kheops</url>
 	</ciManagement>
 
 	<properties>
@@ -125,7 +108,84 @@
 		<main-class>ch.epfl.biop.ij2command.KheopsMainCommand</main-class>
 		<license.licenseName>gpl_v2</license.licenseName>
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
+
+		<ome-common.version>6.0.4</ome-common.version>
+		<bio-formats-tools.version>6.5.0</bio-formats-tools.version>
+
+		<!-- NB: Deploy releases to the SciJava Maven repository. -->
+		<releaseProfiles>deploy-to-scijava</releaseProfiles>
 	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>scijava-common</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.openmicroscopy</groupId>
+			<artifactId>ome-common</artifactId>
+			<version>${ome-common.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>xpp3</groupId>
+					<artifactId>xpp3</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>ome</groupId>
+			<artifactId>bio-formats-tools</artifactId>
+			<version>${bio-formats-tools.version}</version>
+			<exclusions>
+				<exclusion>
+					<groupId>xalan</groupId>
+					<artifactId>xalan</artifactId>
+				</exclusion>
+				<exclusion>
+					<groupId>xpp3</groupId>
+					<artifactId>xpp3</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<dependency>
+			<groupId>ome</groupId>
+			<artifactId>formats-api</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+		</dependency>
+
+		<!-- Runtime dependencies -->
+
+		<dependency>
+			<groupId>net.imagej</groupId>
+			<artifactId>imagej-legacy</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+
+		<!-- Test scope dependencies -->
+
+		<dependency>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
 
 	<repositories>
 		<repository>
@@ -133,41 +193,4 @@
 			<url>https://maven.scijava.org/content/groups/public</url>
 		</repository>
 	</repositories>
-
-	<dependencies>
-		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>imagej</artifactId>
-		</dependency>
-		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>4.12</version>
-			<scope>test</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>ome</groupId>
-			<artifactId>bio-formats-tools</artifactId>
-			<version>6.3.1</version>
-		</dependency>
-
-		<dependency>
-			<groupId>ome</groupId>
-			<artifactId>formats-bsd</artifactId>
-			<version>6.3.1</version>
-		</dependency>
-
-		<!-- https://mvnrepository.com/artifact/org.apache.commons/commons-io -->
-		<dependency>
-			<groupId>commons-io</groupId>
-			<artifactId>commons-io</artifactId>
-		</dependency>
-
-		<dependency>
-			<groupId>net.imagej</groupId>
-			<artifactId>imagej-legacy</artifactId>
-		</dependency>
-
-	</dependencies>
 </project>
