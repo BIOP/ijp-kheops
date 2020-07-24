@@ -58,7 +58,7 @@ public class KheopsSimpleCommand implements Command {
             int pyramidResolution = (int) Math.round( (Math.log( smallest)  - Math.log( tileSize ))/ Math.log ( pyramidScale ));
             System.out.println( "pyramidResolution : "+ pyramidResolution );
 
-            // sinpler approach, fix to a lim of pyramidResolution_max
+            // simpler approach, fix to a lim of pyramidResolution_max
             if ( pyramidResolution > pyramidResolution_max) pyramidResolution = pyramidResolution_max ;
 
             String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
