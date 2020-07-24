@@ -15,6 +15,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.scijava.ItemVisibility.MESSAGE;
+
 /**
  * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
  * The pom file of this project is customized for the PTBIOP Organization (biop.epfl.ch)
@@ -32,8 +34,20 @@ public class KheopsAdvCommand implements Command {
     @Parameter(label="Specify an output folder (optional)", style = "directory", required=false, persist=false)
     File output_dir;
 
-    @Parameter(label="Input image is a pyramid file ", style = "directory",  required=true, persist=true)
+    @Parameter (label="Individual Tile size (in pixel)")
+    int tileSize=512;
+
+    @Parameter (label="Compression" , choices = { "Uncompressed", "LZW", "JPEG-2000", "JPEG-2000 Lossy", "JPEG", "zlib" })
+    String compression="Uncompressed";
+
+    @Parameter (label="Save as BIG  ome.tiff?")
+    boolean bigtiff=true;
+
+    @Parameter(label="Input image is a pyramid file, keep pyramid geometry?", style = "directory")
     Boolean keep_pyramid_geometry = true ;
+
+    @Parameter(visibility = MESSAGE)
+    String message = "if 'keep pyramid geometry' is false, please specify values below";
 
     @Parameter(label="Pyramid level(s)")
     int pyramidResolution=2;
@@ -41,17 +55,10 @@ public class KheopsAdvCommand implements Command {
     @Parameter(label="Pyramid level downsampling factor")
     int pyramidScale=4;
 
-    @Parameter (label="Individual Tile size (in pixel)")
-    int tileSize=512;
-
     @Parameter (label="serie from file")
     int series=0;
 
-    @Parameter (label="Compression" , choices = { "Uncompressed", "LZW", "JPEG-2000", "JPEG-2000 Lossy", "JPEG", "zlib" })
-    String compression="Uncompressed";
 
-    @Parameter (label="Save as BIG  ome.tiff?")
-    boolean bigtiff=true;
 
     @Override
     public void run() {
