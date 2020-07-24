@@ -13,6 +13,7 @@ import org.scijava.plugin.Plugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
@@ -30,6 +31,9 @@ public class KheopsAdvCommand implements Command {
 
     @Parameter(label="Specify an output folder (optional)", style = "directory", required=false, persist=false)
     File output_dir;
+
+    @Parameter(label="Input image is a pyramid file ", style = "directory",  required=true, persist=true)
+    Boolean keep_pyramid_geometry = true ;
 
     @Parameter(label="Pyramid level(s)")
     int pyramidResolution=2;
@@ -70,19 +74,28 @@ public class KheopsAdvCommand implements Command {
                 output_dir.mkdirs();
                 output_path = new File(output_dir, fileNameWithOutExt);
             }
+            String[]  params = {input_path.toString(), output_path.toString(),
+                                "-tilex", String.valueOf(tileSize),
+                                "-tiley", String.valueOf(tileSize),
+                                "-noflat"};
 
-            String[] params = {input_path.toString(), output_path.toString(),
-                    "-pyramid-resolutions", String.valueOf(pyramidResolution),
-                    "-pyramid-scale", String.valueOf(pyramidScale),
-                    "-series", String.valueOf(series),
-                    "-compression",compression,
-                    "-tilex", String.valueOf(tileSize),
-                    "-tiley", String.valueOf(tileSize),
-                    "-noflat",
-            };
+            if (!keep_pyramid_geometry) {
+                String[] newPyr_params = {   "-pyramid-resolutions", String.valueOf(pyramidResolution),
+                                            "-pyramid-scale", String.valueOf(pyramidScale),
+                                            "-series", String.valueOf(series)};
+
+                params = ArrayUtils.addAll(params, newPyr_params );
+            }
+
+            if (!compression.equals("Uncompressed")) {
+                String[] newCom_param = {"-compression", compression};
+                params = ArrayUtils.addAll(params, newCom_param );
+            }
 
             if (bigtiff) params = ArrayUtils.add( params, "-bigtiff" );
-            System.out.println (params);
+
+            System.out.println ( Arrays.toString(params) );
+
             try {
                 DebugTools.enableLogging("INFO");
                 ImageConverter converter = new ImageConverter();
