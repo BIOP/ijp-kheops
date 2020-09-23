@@ -46,7 +46,7 @@ public class KheopsAdvCommand implements Command {
     @Parameter(label="Input image is a pyramid file, keep pyramid geometry?", style = "directory")
     Boolean keep_pyramid_geometry = true ;
 
-    @Parameter(visibility = MESSAGE)
+    @Parameter(visibility = MESSAGE, persist = false)
     String message = "if 'keep pyramid geometry' is false, please specify values below";
 
     @Parameter(label="Pyramid level(s)")
@@ -54,11 +54,6 @@ public class KheopsAdvCommand implements Command {
 
     @Parameter(label="Pyramid level downsampling factor")
     int pyramidScale=4;
-
-    @Parameter (label="serie from file")
-    int series=0;
-
-
 
     @Override
     public void run() {
@@ -81,15 +76,15 @@ public class KheopsAdvCommand implements Command {
                 output_dir.mkdirs();
                 output_path = new File(output_dir, fileNameWithOutExt);
             }
-            String[]  params = {input_path.toString(), output_path.toString(),
+            String[]  params = {input_path.toString(), output_path.toString(),"-overwrite",
                                 "-tilex", String.valueOf(tileSize),
                                 "-tiley", String.valueOf(tileSize),
                                 "-noflat"};
 
             if (!keep_pyramid_geometry) {
                 String[] newPyr_params = {   "-pyramid-resolutions", String.valueOf(pyramidResolution),
-                                            "-pyramid-scale", String.valueOf(pyramidScale),
-                                            "-series", String.valueOf(series)};
+                                            "-pyramid-scale", String.valueOf(pyramidScale)
+                                            };
 
                 params = ArrayUtils.addAll(params, newPyr_params );
             }
