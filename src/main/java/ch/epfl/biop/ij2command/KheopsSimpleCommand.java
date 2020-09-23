@@ -65,7 +65,7 @@ public class KheopsSimpleCommand implements Command {
             File parent_dir = new File(input_path.getParent());
             File output_path = new File(parent_dir, fileNameWithOutExt);
 
-            String[] params = {input_path.toString(), output_path.toString(),
+            String[] params = {input_path.toString(), output_path.toString(),"-overwrite",
                     "-pyramid-resolutions", String.valueOf(pyramidResolution),
                     "-pyramid-scale", String.valueOf(pyramidScale),
                     "-tilex", String.valueOf(tileSize),
