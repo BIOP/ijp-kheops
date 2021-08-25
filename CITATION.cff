@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Guiet"
+  given-names: "Romain"
+  orcid: "https://orcid.org/0000-0001-6715-4897"
+- family-names: "Burri"
+  given-names: "Olivier"
+  orcid: "https://orcid.org/0000-0002-7100-3749"
+- family-names: "Burri"
+  given-names: "Olivier"
+  orcid: "https://orcid.org/0000-0003-4722-6245"
+- family-names: "Chiaruttini"
+  given-names: "Nicolas"
+  orcid: "https://orcid.org/0000-0002-7100-3749"
+- family-names: "Seitz"
+  given-names: "Arne"
+  orcid: "https://orcid.org/0000-0002-5013-1557"
+- family-names: "Eglinger"
+  given-names: "Jan"
+  orcid: "https://orcid.org/0000-0001-7234-1435"  
+title: "Kheops"
+version: 0.1.8
+doi: 10.5281/zenodo.5256256
+date-released: 2021.08.25
+url: "https://github.com/BIOP/ijp-kheops"
