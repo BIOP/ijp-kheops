@@ -99,8 +99,8 @@
 		<url>https://github.com/BIOP/ijp-kheops/issues</url>
 	</issueManagement>
 	<ciManagement>
-		<system>Travis CI</system>
-		<url>https://travis-ci.com/BIOP/ijp-kheops</url>
+		<system>GitHub Actions</system>
+		<url>https://github.com/BIOP/ijp-kheops/actions</url>
 	</ciManagement>
 
 	<properties>
