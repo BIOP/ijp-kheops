@@ -1,9 +1,11 @@
 [![](https://github.com/BIOP/ijp-kheops/actions/workflows/build-main.yml/badge.svg)](https://github.com/BIOP/ijp-kheops/actions/workflows/build-main.yml)
 
 
-**Kheops** is an ImageJ plugin (IJ2 Command based) to **convert image file(s) to pyramidal ome.tiff**. 
+**Kheops** is an ImageJ plugin (IJ2 Command based) to **convert images to pyramidal ome.tiff**. It can convert any Bio-Formats readable file to pyramidal ome.tiff.
 
 It wraps [`bftools` from BioFormats](https://www.openmicroscopy.org/bio-formats/downloads/) into a FIJI Command, that can be installed through the [BIOP update site ](https://c4science.ch/w/bioimaging_and_optics_platform_biop/image-processing/imagej_tools/update-site/).
+
+It can also be used to save an opened image in ImageJ to a pyramidal ome.tiff.
 
 <img src="https://github.com/BIOP/ijp-kheops/raw/master/images/0-kheops_logo.png" title="Kheops" width="50%" align="center">
 
@@ -51,6 +53,9 @@ To specify the size of the tiles
 
 5.Clic  `Open`
 
+## Kheops - Convert Image to Pyramidal OME
+
+This command converts the currently opened Image to a pyramidal ome.tiff file. There are currently some limitations: the image cannot be tiled, and RGB images are currently not supported.
 
 ## Kheops - Read Documentation ...
 You arrive on our c4science page.
@@ -73,6 +78,3 @@ print("Hoyo Hoyo, the pyramid was created in "+ -1*(tic-toc)/1000+" sec ");
 ```
 
 
-## Misc.
-
-This project was initially cloned from https://github.com/imagej/example-imagej-command.git
