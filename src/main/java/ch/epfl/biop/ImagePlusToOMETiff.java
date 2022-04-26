@@ -29,6 +29,7 @@ import loci.formats.meta.IMetadata;
 import loci.formats.meta.IPyramidStore;
 import loci.formats.out.PyramidOMETiffWriter;
 import loci.formats.tiff.IFD;
+import net.imglib2.view.Views;
 import ome.units.UNITS;
 import ome.units.quantity.Length;
 import ome.units.unit.Unit;
@@ -95,8 +96,7 @@ public class ImagePlusToOMETiff {
                 isInterleaved = true;
                 isRGB = true;
                 omeMeta.setPixelsType(PixelType.UINT8, series);
-                throw new UnsupportedOperationException("Unhandled RGB bit depth: "+image.getBitDepth());
-                //break;
+                break;
             default:
                 throw new UnsupportedOperationException("Cannot convert image of type " + image.getType() + " into a valid OME PixelType");
         }
@@ -170,6 +170,7 @@ public class ImagePlusToOMETiff {
         writer.setId(outFile.getAbsolutePath());
         writer.setSeries(0);
         writer.setCompression(compression);
+        writer.setInterleaved(isInterleaved);
 
         // generate downsampled resolutions and write to output
         for (int r = 0; r < resolutions; r++) {
@@ -236,7 +237,7 @@ public class ImagePlusToOMETiff {
         ByteBuffer byteBuf;
         switch (processor.getBitDepth()) {
             case 8:
-                return (byte[])processor.getPixels();
+                return (byte[]) processor.getPixels();
             case 16:
                 //https://stackoverflow.com/questions/10804852/how-to-convert-short-array-to-byte-array
                 // Slow...
@@ -250,12 +251,14 @@ public class ImagePlusToOMETiff {
                 for (float v : pixels_float) byteBuf.putFloat(v);
                 return byteBuf.array();
             case 24:
-                /*byteBuf = ByteBuffer.allocate(4*nPixels);
-                ColorProcessor
-                float[] pixels_float = (float[]) processor.getPixels();
-                for (float v : pixels_float) byteBuf.putFloat(v);
+                byteBuf = ByteBuffer.allocate(3*nPixels);
+                int[] pixels_rgb = (int[]) processor.getPixels();
+                for (int v : pixels_rgb) {
+                    byteBuf.put((byte)((v >> 16) & 0xFF));
+                    byteBuf.put((byte)((v >> 8) & 0xFF));
+                    byteBuf.put((byte)(v & 0xFF));
+                }
                 return byteBuf.array();
-                break;*/
             default:
                 throw new UnsupportedOperationException("Unhandled bit depth: "+processor.getBitDepth());
         }
