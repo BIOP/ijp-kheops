@@ -143,14 +143,14 @@ public class ImagePlusToOMETiff {
         if (image.getCalibration()!=null) {
             Calibration cal = image.getCalibration();
             Unit<Length> unit = getUnitFromCalibration(cal);
-            omeMeta.setPixelsPhysicalSizeX(new Length(cal.pixelWidth, unit), series);
-            omeMeta.setPixelsPhysicalSizeY(new Length(cal.pixelHeight, unit), series);
-            omeMeta.setPixelsPhysicalSizeZ(new Length(cal.pixelDepth, unit), series);
+            omeMeta.setPixelsPhysicalSizeX(new Length(Math.abs(cal.pixelWidth), unit), series);
+            omeMeta.setPixelsPhysicalSizeY(new Length(Math.abs(cal.pixelHeight), unit), series);
+            omeMeta.setPixelsPhysicalSizeZ(new Length(Math.abs(cal.pixelDepth), unit), series);
             // set Origin in XYZ
             // TODO : check if enough or other planes need to be set ?
-            omeMeta.setPlanePositionX(new Length(cal.xOrigin*cal.pixelWidth, unit),0,0);
-            omeMeta.setPlanePositionY(new Length(cal.yOrigin*cal.pixelHeight, unit),0,0);
-            omeMeta.setPlanePositionZ(new Length(cal.zOrigin*cal.pixelDepth, unit),0,0);
+            omeMeta.setPlanePositionX(new Length(Math.abs(cal.xOrigin*cal.pixelWidth), unit),0,0);
+            omeMeta.setPlanePositionY(new Length(Math.abs(cal.yOrigin*cal.pixelHeight), unit),0,0);
+            omeMeta.setPlanePositionZ(new Length(Math.abs(cal.zOrigin*cal.pixelDepth), unit),0,0);
         };
 
         // setup resolutions
