@@ -2,9 +2,7 @@ package ch.epfl.biop.kheops;
 
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
-import ij.IJ;
 import loci.common.image.IImageScaler;
-import loci.common.image.SimpleImageScaler;
 import loci.formats.MetadataTools;
 import loci.formats.in.OMETiffReader;
 import loci.formats.meta.IMetadata;
@@ -266,7 +264,7 @@ public class OMETiffPyramidizerExporter {
                     //Closing the previous local reader
                     localReader.get().close();
                 } else {
-                    localScaler.set(new SimpleImageScaler());//new AverageImageScaler());
+                    localScaler.set(new AverageImageScaler());
                 }
                 OMETiffReader reader = new OMETiffReader();
                 IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
@@ -521,12 +519,7 @@ public class OMETiffPyramidizerExporter {
                                 if (nThreads == 0) {
                                     computeTile(key);
                                 } else {
-                                    boolean first = true;
                                     while (!computedBlocks.containsKey(key)) {
-                                        if (first) {
-                                            IJ.log("Writer waiting");
-                                            first = false;
-                                        }
                                         synchronized (tileLock) {
                                             tileLock.wait();
                                         }

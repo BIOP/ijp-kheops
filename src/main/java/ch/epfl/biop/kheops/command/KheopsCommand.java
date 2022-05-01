@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
  * </p>
  */
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME  ")
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME")
 public class KheopsCommand implements Command {
 
     @Parameter(label = "Select an input file (required)", style="open")
@@ -35,16 +35,13 @@ public class KheopsCommand implements Command {
     @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false, persist=false)
     File output_dir;
 
-    @Parameter(label="For multi-series files, export in parallel")
-    boolean process_series_in_parallel = false;
-
     @Parameter(label="Override voxel sizes")
     boolean override_voxel_size;
 
-    @Parameter(label="Voxel XY size in micrometer", style="format:#.000")
+    @Parameter(label="Voxel size in micrometer (XY)", style="format:#.000")
     double vox_size_xy;
 
-    @Parameter(label="Voxel Z size in micrometer", style="format:#.000")
+    @Parameter(label="Voxel Z size in micrometer (Z)", style="format:#.000")
     double vox_size_z;
 
     Set<String> paths = new HashSet<>();
@@ -78,9 +75,12 @@ public class KheopsCommand implements Command {
 
         int nSeries = sourcesInfo.idToSources.keySet().size();
 
+        boolean process_series_in_parallel = true;
+
         if (nSeries==1) process_series_in_parallel = false;
 
         IntStream idStream =  IntStream.range(0,nSeries);
+
         if (process_series_in_parallel) idStream.parallel();
 
         final boolean parallelProcess = process_series_in_parallel;
