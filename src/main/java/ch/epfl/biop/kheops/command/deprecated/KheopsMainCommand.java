@@ -19,24 +19,23 @@
  * <http://www.gnu.org/licenses/gpl-2.0.html>.
  * #L%
  */
-package ch.epfl.biop.ij2command;
+package ch.epfl.biop.kheops.command.deprecated;
 
+import ij.IJ;
 import loci.common.DebugTools;
 import loci.formats.*;
 import loci.formats.tools.ImageConverter;
 import net.imagej.ImageJ;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
-import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
-import org.scijava.platform.PlatformService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
-import org.scijava.ui.UIService;
-import org.scijava.widget.Button;
 
 import java.io.*;
-import java.net.URL;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.function.Consumer;
 
 /**
  * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
@@ -46,10 +45,11 @@ import java.net.URL;
  * </p>
  */
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME")
+@Deprecated
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>(Deprecated) Kheops - Convert File to Pyramidal OME")
 public class KheopsMainCommand implements Command {
 
-    @Parameter(label="Select an input file (required)" , required=false)
+    @Parameter(label="Select an input file (required)")
     File input_path;
 
     @Parameter(label="Specify an output folder (optional)", style = "directory", required=false, persist=false)
@@ -67,56 +67,63 @@ public class KheopsMainCommand implements Command {
     @Parameter (label="Save as BIG  ome.tiff?")
     boolean bigtiff=true;
 
+    public static Consumer<String> logger = (str) -> IJ.log(str);
+
     @Override
     public void run() {
-            String fileName = input_path.getName();
 
+        Instant start = Instant.now();
+        String fileName = input_path.getName();
 
-            //--------------------
+        //--------------------
 
-            String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
-            File output_path;
+        String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
+        File output_path;
 
-            Boolean isOutputNull = false;
-            if ((output_dir == null) || (output_dir.toString().equals(""))) {
-                isOutputNull = true;
-                File parent_dir = new File(input_path.getParent());
-                output_path = new File(parent_dir, fileNameWithOutExt);
+        Boolean isOutputNull = false;
+        if ((output_dir == null) || (output_dir.toString().equals(""))) {
+            isOutputNull = true;
+            File parent_dir = new File(input_path.getParent());
+            output_path = new File(parent_dir, fileNameWithOutExt);
 
+        } else {
+
+            output_dir.mkdirs();
+            output_path = new File(output_dir, fileNameWithOutExt);
+        }
+
+        String[] params = {input_path.toString(), output_path.toString(), "-overwrite",
+                "-pyramid-resolutions", String.valueOf(pyramidResolution),
+                "-pyramid-scale", String.valueOf(pyramidScale),
+                "-tilex", String.valueOf(tileSize),
+                "-tiley", String.valueOf(tileSize),
+                "-noflat",
+        };
+
+        if (bigtiff) params = ArrayUtils.add( params, "-bigtiff" );
+
+        try {
+            DebugTools.enableLogging("INFO");
+            ImageConverter converter = new ImageConverter();
+            if (!converter.testConvert(new ImageWriter(), params)) {
+               logger.accept("Ooups! Something went wrong, contact BIOP team");
             } else {
-
-                output_dir.mkdirs();
-                output_path = new File(output_dir, fileNameWithOutExt);
+                logger.accept("Jobs Done !");
             }
+        } catch (FormatException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
-            String[] params = {input_path.toString(), output_path.toString(), "-overwrite",
-                    "-pyramid-resolutions", String.valueOf(pyramidResolution),
-                    "-pyramid-scale", String.valueOf(pyramidScale),
-                    "-tilex", String.valueOf(tileSize),
-                    "-tiley", String.valueOf(tileSize),
-                    "-noflat",
-            };
+        // workaround for batch
+        if (isOutputNull) {
+            output_dir = null;
+        }
 
-            if (bigtiff) params = ArrayUtils.add( params, "-bigtiff" );
-
-            try {
-                DebugTools.enableLogging("INFO");
-                ImageConverter converter = new ImageConverter();
-                if (!converter.testConvert(new ImageWriter(), params)) {
-                    System.err.println("Ooups! Something went wrong, contact BIOP team");
-                } else {
-                    System.out.println("Jobs Done !");
-                }
-            } catch (FormatException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            // workaround for batch
-            if (isOutputNull) {
-                output_dir = null;
-            }
+        Instant finish = Instant.now();
+        long timeElapsed = Duration.between(start, finish).toMillis();
+        logger.accept(input_path.getName()+"\t OME TIFF conversion (Deprecated Kheops Adv. Command) \t Run time=\t"+(timeElapsed/1000)+"\t s");
 
     }
 

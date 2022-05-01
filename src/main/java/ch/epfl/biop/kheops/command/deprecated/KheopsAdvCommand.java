@@ -19,8 +19,9 @@
  * <http://www.gnu.org/licenses/gpl-2.0.html>.
  * #L%
  */
-package ch.epfl.biop.ij2command;
+package ch.epfl.biop.kheops.command.deprecated;
 
+import ij.IJ;
 import loci.common.DebugTools;
 import loci.formats.FormatException;
 import loci.formats.ImageWriter;
@@ -34,7 +35,10 @@ import org.scijava.plugin.Plugin;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.function.Consumer;
 
 import static org.scijava.ItemVisibility.MESSAGE;
 
@@ -46,10 +50,11 @@ import static org.scijava.ItemVisibility.MESSAGE;
  * </p>
  */
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Adv. Convert File to Pyramidal OME")
+@Deprecated
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>(Deprecated) Kheops - Adv. Convert File to Pyramidal OME")
 public class KheopsAdvCommand implements Command {
 
-    @Parameter(label="Select an input file (required)" , required=false)
+    @Parameter(label="Select an input file (required)")
     File input_path;
 
     @Parameter(label="Specify an output folder (optional)", style = "directory", required=false, persist=false)
@@ -68,7 +73,7 @@ public class KheopsAdvCommand implements Command {
     Boolean keep_pyramid_geometry = true ;
 
     @Parameter(visibility = MESSAGE, persist = false)
-    String message = "if 'keep pyramid geometry' is false, please specify values below";
+    String message = "If 'keep pyramid geometry' is false, please specify the values below";
 
     @Parameter(label="Pyramid level(s)")
     int pyramidResolution=2;
@@ -76,10 +81,13 @@ public class KheopsAdvCommand implements Command {
     @Parameter(label="Pyramid level downsampling factor")
     int pyramidScale=4;
 
+    public static Consumer<String> logger = (str) -> IJ.log(str);
+
     @Override
     public void run() {
-            String fileName = input_path.getName();
 
+            Instant start = Instant.now();
+            String fileName = input_path.getName();
 
             //--------------------
 
@@ -91,12 +99,11 @@ public class KheopsAdvCommand implements Command {
                 isOutputNull = true;
                 File parent_dir = new File(input_path.getParent());
                 output_path = new File(parent_dir, fileNameWithOutExt);
-
             } else {
-
                 output_dir.mkdirs();
                 output_path = new File(output_dir, fileNameWithOutExt);
             }
+
             String[]  params = {input_path.toString(), output_path.toString(),"-overwrite",
                                 "-tilex", String.valueOf(tileSize),
                                 "-tiley", String.valueOf(tileSize),
@@ -117,15 +124,15 @@ public class KheopsAdvCommand implements Command {
 
             if (bigtiff) params = ArrayUtils.add( params, "-bigtiff" );
 
-            System.out.println ( Arrays.toString(params) );
+            logger.accept ( Arrays.toString(params) );
 
             try {
                 DebugTools.enableLogging("INFO");
                 ImageConverter converter = new ImageConverter();
                 if (!converter.testConvert(new ImageWriter(), params)) {
-                    System.err.println("Ooups! Something went wrong, contact BIOP team");
+                    logger.accept("Ooups! Something went wrong, contact BIOP team");
                 } else {
-                    System.out.println("Jobs Done !");
+                    logger.accept("Jobs Done !");
                 }
             } catch (FormatException e) {
                 e.printStackTrace();
@@ -137,6 +144,11 @@ public class KheopsAdvCommand implements Command {
             if (isOutputNull) {
                 output_dir = null;
             }
+
+
+        Instant finish = Instant.now();
+        long timeElapsed = Duration.between(start, finish).toMillis();
+        logger.accept(input_path.getName()+"\t OME TIFF conversion (Deprecated Kheops Adv. Command) \t Run time=\t"+(timeElapsed/1000)+"\t s");
 
     }
 

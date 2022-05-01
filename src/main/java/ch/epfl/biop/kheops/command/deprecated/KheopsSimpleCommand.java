@@ -19,8 +19,9 @@
  * <http://www.gnu.org/licenses/gpl-2.0.html>.
  * #L%
  */
-package ch.epfl.biop.ij2command;
+package ch.epfl.biop.kheops.command.deprecated;
 
+import ij.IJ;
 import loci.common.DebugTools;
 import loci.formats.FormatException;
 import loci.formats.ImageWriter;
@@ -29,17 +30,16 @@ import loci.formats.tools.ImageConverter;
 import loci.formats.ImageReader;
 import loci.formats.IFormatReader;
 
-import net.imagej.ImageJ;
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.ArrayUtils;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.function.Consumer;
 
 /**
  * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
@@ -49,15 +49,19 @@ import java.io.IOException;
  * </p>
  */
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - No Param. Convert File to Pyramidal OME  ")
+@Deprecated
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>(Deprecated) Kheops - No Param. Convert File to Pyramidal OME  ")
 public class KheopsSimpleCommand implements Command {
 
-    @Parameter(label = "Select an input file (required)", style="", required = false)
+    @Parameter(label = "Select an input file (required)", style = "open")
     File input_path;
 
+    public static Consumer<String> logger = (str) -> IJ.log(str);
 
     @Override
     public void run() {
+
+        Instant start = Instant.now();
         String fileName = input_path.getName();
 
         //--------------------
@@ -68,16 +72,16 @@ public class KheopsSimpleCommand implements Command {
         // looking at the image dimensions, will calculate a recommended tileSize
         final IFormatReader reader = new ImageReader();
         try {
-            System.out.println( input_path );
+            logger.accept( input_path.toString() );
             reader.setId( input_path.toString() );
             int img_width = reader.getSizeX();
             int img_height = reader.getSizeY();
-            System.out.println( "width : "+ img_width );
+            logger.accept( "width : "+ img_width );
 
             // about issue on github : https://github.com/BIOP/ijp-kheops/issues/1#issue-507743340
             int smallest = Math.min( img_width, img_height );
             int pyramidResolution = (int) Math.round( (Math.log( smallest)  - Math.log( tileSize ))/ Math.log ( pyramidScale ));
-            System.out.println( "pyramidResolution : "+ pyramidResolution );
+            logger.accept( "pyramidResolution : "+ pyramidResolution );
 
             // simpler approach, fix to a lim of pyramidResolution_max
             if ( pyramidResolution > pyramidResolution_max) pyramidResolution = pyramidResolution_max ;
@@ -98,9 +102,9 @@ public class KheopsSimpleCommand implements Command {
             DebugTools.enableLogging("INFO");
             ImageConverter converter = new ImageConverter();
             if (!converter.testConvert(new ImageWriter(), params)) {
-                System.err.println("Ooups! Something went wrong, contact BIOP team");
+                logger.accept("Ooups! Something went wrong, contact BIOP team");
             } else {
-                System.out.println("Jobs Done !");
+                logger.accept("Jobs Done !");
             }
 
         } catch (FormatException e) {
@@ -108,6 +112,10 @@ public class KheopsSimpleCommand implements Command {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        Instant finish = Instant.now();
+        long timeElapsed = Duration.between(start, finish).toMillis();
+        logger.accept(input_path.getName()+"\t OME TIFF conversion (Deprecated Kheops Simple Command) \t Run time=\t"+(timeElapsed/1000)+"\t s");
 
     }
 

@@ -19,51 +19,39 @@
  * <http://www.gnu.org/licenses/gpl-2.0.html>.
  * #L%
  */
-package ch.epfl.biop.ij2command;
+package ch.epfl.biop.kheops.command;
 
-import ch.epfl.biop.ImagePlusToOMETiff;
-import ij.IJ;
-import ij.ImagePlus;
 import net.imagej.ImageJ;
+
 import org.scijava.command.Command;
+import org.scijava.platform.PlatformService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
-import java.io.File;
+import java.io.IOException;
+import java.net.URL;
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert Image to Pyramidal OME")
-public class KheopsFromImagePlusCommand implements Command {
+/**
+ * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
+ * The pom file of this project is customized for the PTBIOP Organization (biop.epfl.ch)
+ * <p>
+ * The code here is opening the biop website. The command can be tested in the java DummyCommandTest class.
+ * </p>
+ */
+
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Read Documentation...")
+public class KheopsDocCommand implements Command {
 
     @Parameter
-    ImagePlus image;
-
-    @Parameter(label="Specify an output folder", style = "directory", persist=false)
-    File output_dir;
-
-    @Parameter (label="Compression" , choices = { "Uncompressed", "LZW", "JPEG-2000", "JPEG-2000 Lossy", "JPEG", "zlib" })
-    String compression="Uncompressed";
-
-    @Parameter(label="Pyramid level(s)")
-    int pyramidResolution=2;
-
-    @Parameter(label="Pyramid level downsampling factor")
-    int pyramidScale=4;
+    PlatformService ps;
 
     @Override
     public void run() {
-        String imageTitle = image.getTitle();
-
-        //--------------------
-
-        String fileName = imageTitle + ".ome.tiff";
-        File output_path;
-        output_dir.mkdirs();
-        output_path = new File(output_dir, fileName);
 
         try {
-            ImagePlusToOMETiff.writeToOMETiff(image, output_path, pyramidResolution, pyramidScale, compression);
-        } catch (Exception e) {
-            IJ.error(e.getMessage());
+            // url : go.epfl.ch/ijp-kheops
+            ps.open(new URL("https://github.com/BIOP/ijp-kheops"));
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
@@ -80,5 +68,9 @@ public class KheopsFromImagePlusCommand implements Command {
         // create the ImageJ application context with all available services
         final ImageJ ij = new ImageJ();
         ij.ui().showUI();
+
+        ij.command().run(KheopsDocCommand.class, true);
     }
+
+
 }

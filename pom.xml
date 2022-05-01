@@ -11,7 +11,7 @@
 
 	<groupId>ch.epfl.biop</groupId>
 	<artifactId>ijp-kheops</artifactId>
-	<version>0.1.11-SNAPSHOT</version>
+	<version>0.2.0-SNAPSHOT</version>
 
 	<name>BIOP Kheops Command</name>
 	<description>IJ2 command make use of bioformats convert to create pyramidal ome.tiff</description>
@@ -104,19 +104,27 @@
 	</ciManagement>
 
 	<properties>
-		<package-name>ch.epfl.biop.ij2command</package-name>
-		<main-class>ch.epfl.biop.ij2command.KheopsMainCommand</main-class>
+		<package-name>ch.epfl.biop.kheops.command</package-name>
+		<main-class>ch.epfl.biop.kheops.command.deprecated.KheopsMainCommand</main-class>
 		<license.licenseName>gpl_v2</license.licenseName>
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 
 		<!--<ome-common.version>6.0.4</ome-common.version>-->
-		<bio-formats-tools.version>6.7.0</bio-formats-tools.version>
+		<bigdataviewer-bioformats.version>0.2.24</bigdataviewer-bioformats.version>
+		<bio-formats.version>6.9.1</bio-formats.version>
+		<bio-formats-tools.version>6.9.1</bio-formats-tools.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 	</properties>
 
 	<dependencies>
+
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>bigdataviewer-core</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>net.imagej</groupId>
 			<artifactId>imagej</artifactId>
@@ -125,6 +133,12 @@
 		<dependency>
 			<groupId>org.scijava</groupId>
 			<artifactId>scijava-common</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>ch.epfl.biop</groupId>
+			<artifactId>bigdataviewer-bioformats</artifactId>
+			<version>${bigdataviewer-bioformats.version}</version>
 		</dependency>
 
 		<dependency>
