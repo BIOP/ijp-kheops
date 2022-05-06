@@ -158,7 +158,7 @@ public class KheopsAdvCommand implements Command {
      * your integrated development environment (IDE).
      *
      * @param args whatever, it's ignored
-     * @throws Exception
+     * @throws Exception thrown during runtime
      */
     public static void main(final String... args) throws Exception {
         // create the ImageJ application context with all available services

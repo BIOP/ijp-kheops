@@ -21,10 +21,7 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 /**
- * Creates a pyramidal OME TIFF, with some optimisations
- *
- * TODO documentation or link to documentation
- * </p>
+ * Creates a pyramidal OME TIFF in batch
  */
 
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Batch Convert File to Pyramidal OME")

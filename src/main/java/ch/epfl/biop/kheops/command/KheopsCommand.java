@@ -20,10 +20,7 @@ import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 /**
- * Creates a pyramidal OME TIFF, with some optimisations
- *
- * TODO documentation or link to documentation
- * </p>
+ * Creates a pyramidal OME TIFF from a single file
  */
 
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME")

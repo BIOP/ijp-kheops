@@ -77,11 +77,9 @@ However, note that, as of today, neither `bftools` nor the glencoe optimized wor
 Here is a comparison kheops (left) and the 2 other methods (right):
 ![downscaling computation comparison](images/5-downscaling.png)
 
-We measured the conversion performance for a few test images between these methods. 
+We measured the conversion performance for a few test images between these methods. All tests have been performed with bio-formats 9.6.1. The test machine is a 16 core (Intel core i9-9900K), Win 10. Files are read from a SSD drive and written back to the same drive.
 
 ## Benchmark - conversion of a single file
-
-All tests have been performed with bio-formats 9.6.1. The test machine is a 16 core (Intel core i9-9900K), Win 10. Files are read from a SSD drive and written back to the same drive.
 
 ### Single file, single series
 

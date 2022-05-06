@@ -58,7 +58,8 @@ public class ImagePlusToOMETiff {
      * @param outFile the file to save
      * @param resolutions number of resolution levels to generate (minimum = 1)
      * @param scale scaling factor between each resolution level
-     * @throws Exception
+     * @param compression compression type, see OME allowed compression
+     * @throws Exception exception thrown during writing
      */
     // Inspired from https://github.com/dgault/bio-formats-examples/blob/6cdb11e8c64566611b18f384b3a257dab5037e90/src/main/macros/jython/PyramidConversion.py
     // And https://github.com/qupath/qupath/blob/430d6212e641f677dc9a411cf8033fbbe4da2fd6/qupath-extension-bioformats/src/main/java/qupath/lib/images/writers/ome/OMEPyramidWriter.java
