@@ -86,7 +86,7 @@ public class AverageImageScaler implements IImageScaler {
                 for (int is = 0; is < nShifts; is++) {
                     byte hi = allshifts[is][offs];
                     byte lo = allshifts[is][offs+1];
-                    v += (short)(((hi & 0xFF) << 8) | (lo & 0xFF));
+                    v += (((hi & 0xFF) << 8) | (lo & 0xFF));
                 }
                 bufferShort.put((short) (v / nShifts));
                 offs += bytesPerPixel;
