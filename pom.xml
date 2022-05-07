@@ -105,12 +105,12 @@
 
 	<properties>
 		<package-name>ch.epfl.biop.kheops.command</package-name>
-		<main-class>ch.epfl.biop.kheops.command.deprecated.KheopsMainCommand</main-class>
+		<main-class>ch.epfl.biop.kheops.command.KheopsCommand</main-class>
 		<license.licenseName>gpl_v2</license.licenseName>
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 
 		<!--<ome-common.version>6.0.4</ome-common.version>-->
-		<bigdataviewer-bioformats.version>0.2.24</bigdataviewer-bioformats.version>
+		<bigdataviewer-bioformats.version>0.3.0</bigdataviewer-bioformats.version>
 		<bio-formats.version>6.9.1</bio-formats.version>
 		<bio-formats-tools.version>6.9.1</bio-formats-tools.version>
 
