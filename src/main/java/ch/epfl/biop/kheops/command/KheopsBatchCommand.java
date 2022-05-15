@@ -30,6 +30,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.task.TaskService;
 
 import java.io.File;
 import java.time.Duration;
@@ -50,6 +51,15 @@ public class KheopsBatchCommand implements Command {
     @Parameter(label = "Select input files (required)", style="open")
     File[] input_paths;
 
+    @Parameter( label = "Selected Channels. Leave blank for all", required = false )
+    String range_channels = "";
+
+    @Parameter( label = "Selected Slices. Leave blank for all", required = false )
+    String range_slices = "";
+
+    @Parameter( label = "Selected Timepoints. Leave blank for all", required = false )
+    String range_frames = "";
+
     @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false, persist=false)
     File output_dir;
 
@@ -64,6 +74,9 @@ public class KheopsBatchCommand implements Command {
 
     Set<String> paths = new HashSet<>();
     public static Consumer<String> logger = (str) -> IJ.log(str);
+
+    @Parameter
+    TaskService taskService;
 
     @Override
     public void run() {
@@ -149,6 +162,10 @@ public class KheopsBatchCommand implements Command {
                             .downsample(2)
                             .nResolutionLevels(nResolutions)
                             .micrometer()
+                            .rangeT(range_frames)
+                            .rangeC(range_channels)
+                            .rangeZ(range_slices)
+                            .monitor(taskService)
                             .savePath(output_path.getAbsolutePath())
                             .tileSize(tileSize, tileSize);
 

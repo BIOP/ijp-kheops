@@ -31,6 +31,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.task.TaskService;
 
 import java.io.File;
 import java.time.Duration;
@@ -50,6 +51,15 @@ public class KheopsCommand implements Command {
     @Parameter(label = "Select an input file (required)", style="open")
     File input_path;
 
+    @Parameter( label = "Selected Channels. Leave blank for all", required = false )
+    String range_channels = "";
+
+    @Parameter( label = "Selected Slices. Leave blank for all", required = false )
+    String range_slices = "";
+
+    @Parameter( label = "Selected Timepoints. Leave blank for all", required = false )
+    String range_frames = "";
+
     @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false, persist=false)
     File output_dir;
 
@@ -64,6 +74,9 @@ public class KheopsCommand implements Command {
 
     Set<String> paths = new HashSet<>();
     public static Consumer<String> logger = (str) -> IJ.log(str);
+
+    @Parameter
+    TaskService taskService;
 
     @Override
     public void run() {
@@ -157,7 +170,11 @@ public class KheopsCommand implements Command {
                         .downsample(2)
                         .nResolutionLevels(nResolutions)
                         .micrometer()
+                        .rangeT(range_frames)
+                        .rangeC(range_channels)
+                        .rangeZ(range_slices)
                         .savePath(output_path.getAbsolutePath())
+                        .monitor(taskService)
                         .tileSize(tileSize, tileSize);
 
                 if (override_voxel_size) {
