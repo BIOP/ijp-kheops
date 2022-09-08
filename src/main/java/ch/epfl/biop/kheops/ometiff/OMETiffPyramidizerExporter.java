@@ -110,6 +110,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class OMETiffPyramidizerExporter {
 
+	String[] COMPRESSIONS = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"};
+
 	private static final Logger logger = LoggerFactory.getLogger(
 		OMETiffPyramidizerExporter.class);
 
@@ -123,6 +125,7 @@ public class OMETiffPyramidizerExporter {
 	final ColorConverter[] converters;
 	final Unit<Length> unit;
 	final String compression;
+	final boolean compressTempFile;
 	final AtomicLong writtenTiles = new AtomicLong();
 	long totalTiles;
 
@@ -154,8 +157,9 @@ public class OMETiffPyramidizerExporter {
 		int tileY, int nResolutionLevels, int downsample, String compression,
 		String name, int nThreads, int maxTilesInQueue, TaskService taskService,
 		boolean overridePixelSize, double voxSX, double voxSY, double voxSZ,
-		String rangeC, String rangeZ, String rangeT) throws Exception
+		String rangeC, String rangeZ, String rangeT, boolean compressTempFile) throws Exception
 	{
+		this.compressTempFile = compressTempFile;
 		this.overridePixelSize = overridePixelSize;
 		this.voxSX = voxSX;
 		this.voxSY = voxSY;
@@ -555,7 +559,7 @@ public class OMETiffPyramidizerExporter {
 				currentLevelWriter.setBigTiff(true);
 				currentLevelWriter.setId(getFileName(r));
 				currentLevelWriter.setSeries(series);
-				currentLevelWriter.setCompression(compression);
+				if (compressTempFile) currentLevelWriter.setCompression(compression);
 				currentLevelWriter.setTileSizeX((int) tileX);
 				currentLevelWriter.setTileSizeY((int) tileY);
 				if (r == 0) {
@@ -678,6 +682,7 @@ public class OMETiffPyramidizerExporter {
 		int tileX = Integer.MAX_VALUE; // = no tiling
 		int tileY = Integer.MAX_VALUE; // = no tiling
 		String compression = "Uncompressed";
+		boolean compressTempFiles = false;
 		int nThreads = 0;
 		int maxTilesInQueue = 10;
 		transient TaskService taskService = null;
@@ -757,6 +762,16 @@ public class OMETiffPyramidizerExporter {
 			return this;
 		}
 
+		public Builder compression(int code) {
+			this.compression = CompressionType.get(code).getCompression();
+			return this;
+		}
+
+		public Builder compressTemporaryFiles(boolean compressTempFile) {
+			this.compressTempFiles = compressTempFile;
+			return this;
+		}
+
 		public Builder savePath(String path) {
 			this.path = path;
 			return this;
@@ -822,7 +837,7 @@ public class OMETiffPyramidizerExporter {
 			return new OMETiffPyramidizerExporter(sources, converters, unit, f, tileX,
 				tileY, nResolutions, downSample, compression, imageName, nThreads,
 				maxTilesInQueue, taskService, overridePixSize, voxSizeX, voxSizeY,
-				voxSizeZ, rangeC, rangeZ, rangeT);
+				voxSizeZ, rangeC, rangeZ, rangeT, compressTempFiles);
 		}
 
 	}

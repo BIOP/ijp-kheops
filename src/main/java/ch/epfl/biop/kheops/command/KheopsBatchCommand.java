@@ -67,6 +67,12 @@ public class KheopsBatchCommand implements Command {
     @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false, persist=false)
     File output_dir;
 
+    @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
+    String compression = "LZW";
+
+    @Parameter(label="Compress temporary files (save space on drive during conversion)")
+    boolean compress_temp_files = false;
+
     @Parameter(label="Override voxel sizes")
     boolean override_voxel_size;
 
@@ -166,7 +172,8 @@ public class KheopsBatchCommand implements Command {
                         try {
 
                             OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
-                                    .lzw()
+                                    .compression(compression)
+                                    .compressTemporaryFiles(compress_temp_files)
                                     .nThreads(0)
                                     .downsample(2)
                                     .nResolutionLevels(nResolutions)
