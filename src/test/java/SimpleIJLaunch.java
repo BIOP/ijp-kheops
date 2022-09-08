@@ -22,10 +22,10 @@
 import net.imagej.ImageJ;
 import org.junit.Test;
 
-public class DummyCommandTest {
+public class SimpleIJLaunch {
 
-    @Test
-    public void run() throws Exception {
+
+    public static void main(String... args) {
         // Arrange
         // create the ImageJ application context with all available services
 
