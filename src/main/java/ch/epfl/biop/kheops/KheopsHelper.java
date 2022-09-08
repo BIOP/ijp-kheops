@@ -22,9 +22,9 @@
 package ch.epfl.biop.kheops;
 
 import bdv.viewer.SourceAndConverter;
-import ch.epfl.biop.bdv.bioformats.bioformatssource.BioFormatsBdvOpener;
-import ch.epfl.biop.bdv.bioformats.export.spimdata.BioFormatsConvertFilesToSpimData;
-import ch.epfl.biop.bdv.bioformats.imageloader.SeriesNumber;
+import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsBdvOpener;
+import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsToSpimData;
+import ch.epfl.biop.bdv.img.legacy.bioformats.entity.SeriesNumber;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.generic.sequence.BasicViewSetup;
 import ome.units.UNITS;
@@ -43,13 +43,13 @@ public class KheopsHelper {
                                                             int maxCacheSize,
                                                             int nParallelJobs) {
         BioFormatsBdvOpener opener =
-                BioFormatsConvertFilesToSpimData.getDefaultOpener(path)
+                BioFormatsToSpimData.getDefaultOpener(path)
                         .micrometer()
                         .queueOptions(nParallelJobs, 4)
                         .cacheBlockSize(tileX, tileY, 1)
                         .cacheBounded(maxCacheSize*nParallelJobs);
 
-        AbstractSpimData asd = BioFormatsConvertFilesToSpimData
+        AbstractSpimData asd = BioFormatsToSpimData
                 .getSpimData(
                     opener.voxSizeReferenceFrameLength(new Length(1, UNITS.MILLIMETER))
                           .positionReferenceFrameLength(new Length(1,UNITS.METER)));

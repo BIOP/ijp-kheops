@@ -22,8 +22,8 @@
 package ch.epfl.biop.kheops.command;
 
 import bdv.viewer.SourceAndConverter;
-import ch.epfl.biop.bdv.bioformats.export.ometiff.OMETiffPyramidizerExporter;
 import ch.epfl.biop.kheops.KheopsHelper;
+import ch.epfl.biop.kheops.ometiff.OMETiffPyramidizerExporter;
 import ij.IJ;
 import loci.common.DebugTools;
 import org.apache.commons.io.FilenameUtils;

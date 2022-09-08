@@ -110,7 +110,7 @@
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 
 		<!--<ome-common.version>6.0.4</ome-common.version>-->
-		<bigdataviewer-bioformats.version>0.3.6</bigdataviewer-bioformats.version>
+		<bigdataviewer-image-loaders.version>0.3.0</bigdataviewer-image-loaders.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
@@ -135,8 +135,8 @@
 
 		<dependency>
 			<groupId>ch.epfl.biop</groupId>
-			<artifactId>bigdataviewer-bioformats</artifactId>
-			<version>${bigdataviewer-bioformats.version}</version>
+			<artifactId>bigdataviewer-image-loaders</artifactId>
+			<version>${bigdataviewer-image-loaders.version}</version>
 		</dependency>
 
 		<dependency>
