@@ -21,16 +21,23 @@
  */
 package ch.epfl.biop.kheops;
 
+import bdv.img.cache.VolatileGlobalCellCache;
+import bdv.img.hdf5.Hdf5ImageLoader;
+import bdv.img.n5.N5ImageLoader;
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsBdvOpener;
 import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsToSpimData;
 import ch.epfl.biop.bdv.img.legacy.bioformats.entity.SeriesNumber;
 import mpicbg.spim.data.generic.AbstractSpimData;
+import mpicbg.spim.data.generic.sequence.BasicImgLoader;
 import mpicbg.spim.data.generic.sequence.BasicViewSetup;
+import net.imglib2.cache.LoaderCache;
+import net.imglib2.cache.ref.BoundedSoftRefLoaderCache;
 import ome.units.UNITS;
 import ome.units.quantity.Length;
 import spimdata.util.Displaysettings;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -45,14 +52,16 @@ public class KheopsHelper {
         BioFormatsBdvOpener opener =
                 BioFormatsToSpimData.getDefaultOpener(path)
                         .micrometer()
-                        .queueOptions(nParallelJobs, 4)
-                        .cacheBlockSize(tileX, tileY, 1)
-                        .cacheBounded(maxCacheSize*nParallelJobs);
+                        .cacheBlockSize(tileX, tileY, 1);
+                        //.queueOptions(nParallelJobs, 4)
+                        //.cacheBounded(maxCacheSize*nParallelJobs);
 
-        AbstractSpimData asd = BioFormatsToSpimData
+        AbstractSpimData<?> asd = BioFormatsToSpimData
                 .getSpimData(
                     opener.voxSizeReferenceFrameLength(new Length(1, UNITS.MILLIMETER))
                           .positionReferenceFrameLength(new Length(1,UNITS.METER)));
+
+        boundSpimDataCache(asd, maxCacheSize*nParallelJobs, nParallelJobs, 4);
 
         Map<Integer, SourceAndConverter> idToSource = new SourceAndConverterFromSpimDataCreator(asd).getSetupIdToSourceAndConverter();
 
@@ -61,7 +70,7 @@ public class KheopsHelper {
 
         idToSource.keySet().stream()
                 .forEach(id -> {
-                    BasicViewSetup bvs = (BasicViewSetup) asd.getSequenceDescription().getViewSetups().get(id);
+                    BasicViewSetup bvs = asd.getSequenceDescription().getViewSetups().get(id);
                     SeriesNumber sn = bvs.getAttribute(SeriesNumber.class);
                     if (sn!=null) {
                         idToSeries.put(id, sn);
@@ -97,5 +106,42 @@ public class KheopsHelper {
     public static class SourcesInfo {
         public Map<Integer, List<SourceAndConverter>> idToSources;
         public Map<Integer, String> idToNames;
+    }
+
+    private static boolean boundSpimDataCache(AbstractSpimData<?> asd, int nBlocks, int nThreads, int nPriorities) {
+        LoaderCache loaderCache = new BoundedSoftRefLoaderCache(nBlocks);
+        BasicImgLoader imageLoader = asd.getSequenceDescription().getImgLoader();
+        VolatileGlobalCellCache cache = new VolatileGlobalCellCache(nPriorities, nThreads);
+        // Now override the backingCache field of the VolatileGlobalCellCache
+        try {
+            Field backingCacheField = VolatileGlobalCellCache.class.getDeclaredField(
+                    "backingCache");
+            backingCacheField.setAccessible(true);
+            backingCacheField.set(cache, loaderCache);
+            // Now overrides the cache in the ImageLoader
+            if (imageLoader instanceof Hdf5ImageLoader) {
+                Field cacheField = Hdf5ImageLoader.class.getDeclaredField("cache");
+                cacheField.setAccessible(true);
+                cacheField.set(imageLoader, cache);
+                return true;
+            }
+            else if (imageLoader instanceof N5ImageLoader) {
+                Field cacheField = N5ImageLoader.class.getDeclaredField("cache");
+                cacheField.setAccessible(true);
+                cacheField.set(imageLoader, cache);
+                return true;
+            }
+            else {
+                Field cacheField = imageLoader.getClass().getDeclaredField("cache");
+                cacheField.setAccessible(true);
+                cacheField.set(imageLoader, cache);
+                return true;
+            }
+        }
+        catch (NoSuchFieldException | IllegalAccessException e) {
+            e.printStackTrace();
+            return false;
+        }
+
     }
 }
