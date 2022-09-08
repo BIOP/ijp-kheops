@@ -144,7 +144,6 @@ public class OMETiffPyramidizerExporter {
 	final TileIterator tileIterator;
 	final int nThreads;
 	final Task writerTask;
-	final Task readerTask;
 
 	final Object tileLock = new Object();
 
@@ -166,11 +165,9 @@ public class OMETiffPyramidizerExporter {
 		this.voxSZ = voxSZ;
 		if (taskService != null) {
 			this.writerTask = taskService.createTask("Writing: " + file.getName());
-			this.readerTask = taskService.createTask("Reading: " + file.getName());
 		}
 		else {
 			this.writerTask = null;
-			this.readerTask = null;
 		}
 		Source model = sources[0];
 		this.tileX = tileX;
@@ -249,7 +246,6 @@ public class OMETiffPyramidizerExporter {
 
 		tileIterator = new TileIterator(nResolutionLevels, sizeT, sizeC, sizeZ,
 			resToNY, resToNX, maxTilesInQueue);
-		if (readerTask != null) tileIterator.setTask(readerTask);
 		this.nThreads = nThreads;
 		computedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1); // should be
 																																// enough to
@@ -632,7 +628,6 @@ public class OMETiffPyramidizerExporter {
 			}
 		}
 
-		if (readerTask != null) readerTask.run(() -> {});
 		if (nThreads == 0) {
 			if (writerTask != null) {
 				writerTask.setStatusMessage("Closing readers.");
@@ -649,7 +644,7 @@ public class OMETiffPyramidizerExporter {
 		}
 		computedBlocks.clear();
 		if (writerTask != null) {
-			// Let's do a quick computation based on the following estimation: 5
+			// Let's do a quick computation based on the following assumption: 5
 			// minutes for 100k blocks
 			int estimateTimeMin = (int) (5 * totalTiles / 1e5);
 			if (estimateTimeMin < 2) {
