@@ -14,7 +14,7 @@
 	<version>0.2.4-SNAPSHOT</version>
 
 	<name>BIOP Kheops Command</name>
-	<description>IJ2 command make use of bioformats convert to create pyramidal ome.tiff</description>
+	<description>IJ2 commands that use bio-formats to create pyramidal ome.tiff</description>
 	<url>http://biop.epfl.ch</url>
 	<inceptionYear>2018</inceptionYear>
 	<organization>
@@ -110,9 +110,13 @@
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 
 		<!--<ome-common.version>6.0.4</ome-common.version>-->
-		<bigdataviewer-bioformats.version>0.3.4</bigdataviewer-bioformats.version>
-		<bio-formats.version>6.9.1</bio-formats.version>
-		<bio-formats-tools.version>6.9.1</bio-formats-tools.version>
+		<bigdataviewer-bioformats.version>0.3.6</bigdataviewer-bioformats.version>
+		<bio-formats-tools.version>6.10.1</bio-formats-tools.version>
+
+		<!--because xml deserialization with JAXB is not included in Java 11, and we prepare migrating to Java 11 -->
+		<jakarta.xml.bind-api.version>3.0.1</jakarta.xml.bind-api.version>
+		<jaxb-impl.version>3.0.2</jaxb-impl.version>
+
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
@@ -135,6 +139,22 @@
 			<artifactId>scijava-common</artifactId>
 		</dependency>
 
+		<!-- JAXB API v3.0.1 -->
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+			<version>${jakarta.xml.bind-api.version}</version>
+		</dependency>
+
+		<!-- JAXB v3.0.2 reference implementation (curiously with com.sun coordinates) -->
+		<dependency>
+			<groupId>com.sun.xml.bind</groupId>
+			<artifactId>jaxb-impl</artifactId>
+			<version>${jaxb-impl.version}</version>
+			<scope>runtime</scope>
+		</dependency>
+
+
 		<dependency>
 			<groupId>ch.epfl.biop</groupId>
 			<artifactId>bigdataviewer-bioformats</artifactId>
@@ -146,6 +166,10 @@
 			<artifactId>ome-common</artifactId>
 			<version>${ome-common.version}</version>
 			<exclusions>
+				<exclusion>
+					<groupId>xalan</groupId>
+					<artifactId>xalan</artifactId>
+				</exclusion>
 				<exclusion>
 					<groupId>xpp3</groupId>
 					<artifactId>xpp3</artifactId>

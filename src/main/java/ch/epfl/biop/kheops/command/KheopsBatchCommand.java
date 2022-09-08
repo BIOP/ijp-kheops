@@ -38,6 +38,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
@@ -50,6 +51,9 @@ public class KheopsBatchCommand implements Command {
 
     @Parameter(label = "Select input files (required)", style="open")
     File[] input_paths;
+
+    @Parameter
+    int number_of_threads;
 
     @Parameter( label = "Selected Channels. Leave blank for all", required = false )
     String range_channels = "";
@@ -98,90 +102,101 @@ public class KheopsBatchCommand implements Command {
             output_dir.mkdirs();
         }
 
-        Arrays.asList(input_paths).parallelStream().forEach(input_path -> {
+        ForkJoinPool customThreadPool = new ForkJoinPool(number_of_threads);
+        try {
+            customThreadPool.submit(() -> {
 
-            String fileName = input_path.getName();
+                Arrays.asList(input_paths).parallelStream().forEach(input_path -> {
 
-            KheopsHelper.SourcesInfo sourcesInfo =
-                    KheopsHelper.getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, 10,1);
+                    IJ.log("Processing "+input_path);
+                    String fileName = input_path.getName();
 
-            int nSeries = sourcesInfo.idToSources.keySet().size();
+                    KheopsHelper.SourcesInfo sourcesInfo =
+                            KheopsHelper.getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, 1,1);
 
-            IntStream idStream =  IntStream.range(0,nSeries);
+                    int nSeries = sourcesInfo.idToSources.keySet().size();
 
-            idStream.forEach(iSeries -> {
+                    IntStream idStream =  IntStream.range(0,nSeries);
 
-                String fileNameWithOutExt = FilenameUtils.removeExtension(fileName);
-                SourceAndConverter[] sources = sourcesInfo.idToSources.get(iSeries).toArray(new SourceAndConverter[0]);
+                    idStream.forEach(iSeries -> {
 
-                if (nSeries>1) {
-                    if (sourcesInfo.idToNames.containsKey(iSeries)) {
-                        fileNameWithOutExt += "_" + sourcesInfo.idToNames.get(iSeries);
-                    } else {
-                        fileNameWithOutExt += "_" + iSeries;
-                    }
-                }
+                        String fileNameWithOutExt = FilenameUtils.removeExtension(fileName);
+                        SourceAndConverter[] sources = sourcesInfo.idToSources.get(iSeries).toArray(new SourceAndConverter[0]);
 
-                // avoid duplicate names
-                synchronized (paths) {
-                    boolean appendSuffix = false;
-                    int counter = 0;
-                    if (paths.contains(fileNameWithOutExt)) {
-                        fileNameWithOutExt+="_s"+iSeries;
-                    }
-                    while (paths.contains(fileNameWithOutExt)) {
-                        if (appendSuffix) {
-                            fileNameWithOutExt = fileNameWithOutExt.substring(0,fileNameWithOutExt.length()-2)+"_"+counter;
-                        } else {
-                            fileNameWithOutExt += "_"+counter;
+                        if (nSeries>1) {
+                            if (sourcesInfo.idToNames.containsKey(iSeries)) {
+                                fileNameWithOutExt += "_" + sourcesInfo.idToNames.get(iSeries);
+                            } else {
+                                fileNameWithOutExt += "_" + iSeries;
+                            }
                         }
-                        appendSuffix = true;
-                        counter++;
-                    }
-                    paths.add(fileNameWithOutExt);
-                }
 
-                fileNameWithOutExt+=".ome.tiff";
+                        // avoid duplicate names
+                        synchronized (paths) {
+                            boolean appendSuffix = false;
+                            int counter = 0;
+                            if (paths.contains(fileNameWithOutExt)) {
+                                fileNameWithOutExt+="_s"+iSeries;
+                            }
+                            while (paths.contains(fileNameWithOutExt)) {
+                                if (appendSuffix) {
+                                    fileNameWithOutExt = fileNameWithOutExt.substring(0,fileNameWithOutExt.length()-2)+"_"+counter;
+                                } else {
+                                    fileNameWithOutExt += "_"+counter;
+                                }
+                                appendSuffix = true;
+                                counter++;
+                            }
+                            paths.add(fileNameWithOutExt);
+                        }
 
-                File output_path = new File(output_dir, fileNameWithOutExt);
+                        fileNameWithOutExt+=".ome.tiff";
 
-                int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0,0).max(0),sources[0].getSpimSource().getSource(0,0).max(1));
+                        File output_path = new File(output_dir, fileNameWithOutExt);
 
-                int nResolutions = 1;
+                        int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0,0).max(0),sources[0].getSpimSource().getSource(0,0).max(1));
 
-                while (sizeFullResolution>tileSize) {
-                    sizeFullResolution/=2;
-                    nResolutions++;
-                }
+                        int nResolutions = 1;
 
-                try {
+                        while (sizeFullResolution>tileSize) {
+                            sizeFullResolution/=2;
+                            nResolutions++;
+                        }
 
-                    OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
-                            .lzw()
-                            .nThreads(0)
-                            .downsample(2)
-                            .nResolutionLevels(nResolutions)
-                            .micrometer()
-                            .rangeT(range_frames)
-                            .rangeC(range_channels)
-                            .rangeZ(range_slices)
-                            .monitor(taskService)
-                            .savePath(output_path.getAbsolutePath())
-                            .tileSize(tileSize, tileSize);
+                        try {
 
-                    if (override_voxel_size) {
-                        builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
-                    }
+                            OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
+                                    .lzw()
+                                    .nThreads(0)
+                                    .downsample(2)
+                                    .nResolutionLevels(nResolutions)
+                                    .micrometer()
+                                    .rangeT(range_frames)
+                                    .rangeC(range_channels)
+                                    .rangeZ(range_slices)
+                                    .monitor(taskService)
+                                    .savePath(output_path.getAbsolutePath())
+                                    .tileSize(tileSize, tileSize);
 
-                    builder.create(sources).export();
+                            if (override_voxel_size) {
+                                builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
+                            }
 
-                } catch (Exception e) {
-                    IJ.log("Error with "+fileNameWithOutExt+" export.");
-                    e.printStackTrace();
-                }
+                            builder.create(sources).export();
+                            IJ.log("Processing "+input_path+": done.");
+                        } catch (Exception e) {
+                            IJ.log("Error with "+fileNameWithOutExt+" export.");
+                            e.printStackTrace();
+                        }
 
-            });
-        });
+                    });
+                });
+            return 0;}).get();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        customThreadPool.shutdown();
 
 
         // CODE HERE
