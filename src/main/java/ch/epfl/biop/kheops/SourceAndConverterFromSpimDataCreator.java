@@ -1,7 +1,7 @@
 package ch.epfl.biop.kheops;
 /*-
  * #%L
- * IJ2 command make use of bioformats convert to create pyramidal ome.tiff
+ * IJ2 commands that use bio-formats to create pyramidal ome.tiff
  * %%
  * Copyright (C) 2018 - 2022 ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)
  * %%
