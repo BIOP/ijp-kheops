@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>32.0.0</version>
+		<version>33.1.0</version>
 		<relativePath />
 	</parent>
 
@@ -109,7 +109,7 @@
 		<license.licenseName>gpl_v2</license.licenseName>
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 
-		<bigdataviewer-image-loaders.version>0.3.0</bigdataviewer-image-loaders.version>
+		<bigdataviewer-image-loaders.version>0.3.2</bigdataviewer-image-loaders.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
