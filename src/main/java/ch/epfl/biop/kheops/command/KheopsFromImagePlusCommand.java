@@ -22,13 +22,16 @@
 package ch.epfl.biop.kheops.command;
 
 import ch.epfl.biop.ImagePlusToOMETiff;
+import ch.epfl.biop.kheops.KheopsHelper;
 import ij.IJ;
 import ij.ImagePlus;
 import org.scijava.command.Command;
+import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
 import java.io.File;
+import java.time.Instant;
 
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert Image to Pyramidal OME")
 public class KheopsFromImagePlusCommand implements Command {
@@ -48,8 +51,13 @@ public class KheopsFromImagePlusCommand implements Command {
     @Parameter(label="Pyramid level downsampling factor")
     int pyramidScale=4;
 
+    @Parameter
+    LogService logger;
+
     @Override
     public void run() {
+
+        Instant start = Instant.now();
         String imageTitle = image.getTitle();
 
         //--------------------
@@ -61,6 +69,9 @@ public class KheopsFromImagePlusCommand implements Command {
 
         try {
             ImagePlusToOMETiff.writeToOMETiff(image, output_path, pyramidResolution, pyramidScale, compression);
+            KheopsHelper.writeElapsedTime(start,
+                    logger.subLogger(this.getClass().getSimpleName()),
+                    imageTitle+" export time:");
         } catch (Exception e) {
             IJ.error(e.getMessage());
             e.printStackTrace();

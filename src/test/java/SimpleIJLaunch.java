@@ -22,6 +22,9 @@
 import net.imagej.ImageJ;
 import org.junit.Test;
 
+import javax.swing.SwingUtilities;
+import java.lang.reflect.InvocationTargetException;
+
 public class SimpleIJLaunch {
 
 
@@ -30,7 +33,13 @@ public class SimpleIJLaunch {
         // create the ImageJ application context with all available services
 
         final ImageJ ij = new ImageJ();
-        ij.ui().showUI();
+        try {
+            SwingUtilities.invokeAndWait(() -> ij.ui().showUI());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (InvocationTargetException e) {
+            e.printStackTrace();
+        }
 
         // Act
         /*Future<CommandModule> m = ij.command().run(KheopsMainCommand.class, true, "input_path","pyramidResolution", 2, "pyramidScale", 2, "tileXsize", 512 , "tileYsize",512);

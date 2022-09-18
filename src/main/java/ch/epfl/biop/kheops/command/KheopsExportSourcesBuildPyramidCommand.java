@@ -23,13 +23,18 @@
 package ch.epfl.biop.kheops.command;
 
 import bdv.viewer.SourceAndConverter;
+import ch.epfl.biop.kheops.KheopsHelper;
 import ch.epfl.biop.kheops.ometiff.OMETiffPyramidizerExporter;
+import org.apache.commons.lang.time.DurationFormatUtils;
 import org.scijava.command.Command;
+import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.task.TaskService;
 
 import java.io.File;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 
@@ -92,8 +97,12 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
     @Parameter
     TaskService taskService;
 
+    @Parameter
+    LogService logger;
+
     @Override
     public void run() {
+        Instant start = Instant.now();
 
         List<SourceAndConverter> sources = Arrays.asList(sacs);
 
@@ -116,6 +125,9 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
 
         try {
             builder.create(sacs).export();
+            KheopsHelper.writeElapsedTime(start,
+                    logger.subLogger(this.getClass().getSimpleName()),
+                    file.getName()+" export time:");
         }
         catch (Exception e) {
             e.printStackTrace();

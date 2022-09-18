@@ -28,6 +28,7 @@ import ij.IJ;
 import loci.common.DebugTools;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.command.Command;
+import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 import org.scijava.task.TaskService;
@@ -87,6 +88,9 @@ public class KheopsBatchCommand implements Command {
 
     @Parameter
     TaskService taskService;
+
+    @Parameter
+    LogService logService;
 
     @Override
     public void run() {
@@ -210,6 +214,9 @@ public class KheopsBatchCommand implements Command {
         Instant finish = Instant.now();
         long timeElapsed = Duration.between(start, finish).toMillis();
         logger.accept("\t Batch OME TIFF conversion (Kheops) \t Run time=\t"+(timeElapsed/1000)+"\t s ");
+        KheopsHelper.writeElapsedTime(start,
+                logService.subLogger(this.getClass().getSimpleName()),
+                "Batch export time:");
     }
 
 }

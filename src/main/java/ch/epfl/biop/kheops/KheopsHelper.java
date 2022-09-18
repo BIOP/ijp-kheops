@@ -28,6 +28,7 @@ import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsBdvOpener;
 import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsToSpimData;
 import ch.epfl.biop.bdv.img.legacy.bioformats.entity.SeriesNumber;
+import ij.IJ;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.generic.sequence.BasicImgLoader;
 import mpicbg.spim.data.generic.sequence.BasicViewSetup;
@@ -35,9 +36,13 @@ import net.imglib2.cache.LoaderCache;
 import net.imglib2.cache.ref.BoundedSoftRefLoaderCache;
 import ome.units.UNITS;
 import ome.units.quantity.Length;
+import org.apache.commons.lang.time.DurationFormatUtils;
+import org.scijava.log.Logger;
 import spimdata.util.Displaysettings;
 
 import java.lang.reflect.Field;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -143,5 +148,12 @@ public class KheopsHelper {
             return false;
         }
 
+    }
+
+    public static void writeElapsedTime(Instant start, Logger logger, String message) {
+        long elapsed = Duration.between(start, Instant.now()).toMillis();
+        String fullMessage = message+":  "+DurationFormatUtils.formatDuration(elapsed, "H:mm:ss", true);
+        logger.info(fullMessage);
+        IJ.log(fullMessage);
     }
 }
