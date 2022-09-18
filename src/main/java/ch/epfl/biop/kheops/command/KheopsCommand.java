@@ -181,6 +181,7 @@ public class KheopsCommand implements Command {
                         .rangeT(range_frames)
                         .rangeC(range_channels)
                         .rangeZ(range_slices)
+                        .channelNames(sourcesInfo.idToChannels)
                         .savePath(output_path.getAbsolutePath())
                         .monitor(taskService)
                         .tileSize(tileSize, tileSize);

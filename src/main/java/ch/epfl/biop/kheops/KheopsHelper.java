@@ -32,6 +32,7 @@ import ij.IJ;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.generic.sequence.BasicImgLoader;
 import mpicbg.spim.data.generic.sequence.BasicViewSetup;
+import mpicbg.spim.data.sequence.Channel;
 import net.imglib2.cache.LoaderCache;
 import net.imglib2.cache.ref.BoundedSoftRefLoaderCache;
 import ome.units.UNITS;
@@ -72,14 +73,17 @@ public class KheopsHelper {
 
         Map<Integer, SeriesNumber> idToSeries = new HashMap<>();
         Map<Integer, String> idToNames = new HashMap<>();
+        Map<Integer, String> idToChannels = new HashMap<>();
 
         idToSource.keySet().stream()
                 .forEach(id -> {
                     BasicViewSetup bvs = asd.getSequenceDescription().getViewSetups().get(id);
                     SeriesNumber sn = bvs.getAttribute(SeriesNumber.class);
+                    Channel channel = bvs.getAttribute(Channel.class);
                     if (sn!=null) {
                         idToSeries.put(id, sn);
                         idToNames.put(id, sn.getName());
+                        idToChannels.put(id, channel.getName());
                     }
                     Displaysettings displaysettings = bvs.getAttribute(Displaysettings.class);
                     if (displaysettings!=null) {
@@ -104,6 +108,7 @@ public class KheopsHelper {
 
         info.idToSources = idToSacs;
         info.idToNames = idToNames;
+        info.idToChannels = idToChannels;
 
         return info;
     }
@@ -111,6 +116,7 @@ public class KheopsHelper {
     public static class SourcesInfo {
         public Map<Integer, List<SourceAndConverter>> idToSources;
         public Map<Integer, String> idToNames;
+        public Map<Integer, String> idToChannels;
     }
 
     private static boolean boundSpimDataCache(AbstractSpimData<?> asd, int nBlocks, int nThreads, int nPriorities) {

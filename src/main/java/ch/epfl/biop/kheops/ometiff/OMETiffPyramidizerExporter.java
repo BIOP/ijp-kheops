@@ -139,14 +139,16 @@ public class OMETiffPyramidizerExporter {
 	final boolean overridePixelSize;
 	final double voxSX, voxSY, voxSZ;
 	final CZTRange range;
+	final Map<Integer, String> idToChannels;
 
 	public OMETiffPyramidizerExporter(Source[] sources,
 		ColorConverter[] converters, Unit<Length> unit, File file, int tileX,
 		int tileY, int nResolutionLevels, int downsample, String compression,
-		String name, int nThreads, int maxTilesInQueue, TaskService taskService,
+		String name, Map<Integer, String> idToChannels, int nThreads, int maxTilesInQueue, TaskService taskService,
 		boolean overridePixelSize, double voxSX, double voxSY, double voxSZ,
 		String rangeC, String rangeZ, String rangeT, boolean compressTempFile) throws Exception
 	{
+		this.idToChannels = idToChannels;
 		this.compressTempFile = compressTempFile;
 		this.overridePixelSize = overridePixelSize;
 		this.voxSX = voxSX;
@@ -159,8 +161,7 @@ public class OMETiffPyramidizerExporter {
 			this.writerTask = null;
 		}
 		Source model = sources[0];
-		this.tileX = tileX;
-		this.tileY = tileY;
+
 		this.downsample = downsample;
 		this.nResolutionLevels = nResolutionLevels;
 
@@ -180,6 +181,14 @@ public class OMETiffPyramidizerExporter {
 
 		width = (int) model.getSource(0, 0).max(0) + 1;
 		height = (int) model.getSource(0, 0).max(1) + 1;
+
+		if (width<=tileX) {
+			this.tileX = width;
+		} else this.tileX = tileX;
+
+		if (height<=tileY) {
+			this.tileY = height;
+		} else this.tileY = tileY;
 
 		int iniSizeZ = (int) model.getSource(0, 0).max(2) + 1;
 		int iniSizeT = getMaxTimepoint(model);
@@ -426,7 +435,11 @@ public class OMETiffPyramidizerExporter {
 
 		if (isRGB) {
 			meta.setChannelID("Channel:0", series, 0);
-			meta.setChannelName("Channel_0", series, 0);
+			if (idToChannels.containsKey(range.getRangeC().get(0))) {
+				meta.setChannelName(idToChannels.get(range.getRangeC().get(0)), series, 0);
+			} else {
+				meta.setChannelName("Channel_0", series, 0);
+			}
 			meta.setChannelSamplesPerPixel(new PositiveInteger(3), series, 0);
 		}
 		else {
@@ -440,7 +453,11 @@ public class OMETiffPyramidizerExporter {
 				int colorAlpha = ARGBType.alpha(colorCode);
 				meta.setChannelColor(new Color(colorRed, colorGreen, colorBlue,
 					colorAlpha), series, c);
-				meta.setChannelName("Channel_" + c, series, c);
+				if (idToChannels.containsKey(range.getRangeC().get(c))) {
+					meta.setChannelName(idToChannels.get(range.getRangeC().get(c)), series, c);
+				} else {
+					meta.setChannelName("Channel_" + c, series, c);
+				}
 			}
 		}
 
@@ -679,6 +696,7 @@ public class OMETiffPyramidizerExporter {
 		String rangeC = "";
 		String rangeZ = "";
 		String rangeT = "";
+		Map<Integer, String> idToChannels = new HashMap<>();
 
 		public Builder tileSize(int tileX, int tileY) {
 			this.tileX = tileX;
@@ -804,6 +822,11 @@ public class OMETiffPyramidizerExporter {
 			return this;
 		}
 
+		public Builder channelNames(Map<Integer, String> idToChannels) {
+			this.idToChannels = idToChannels;
+			return this;
+		}
+
 		public OMETiffPyramidizerExporter create(SourceAndConverter... sacs)
 			throws Exception
 		{
@@ -819,12 +842,13 @@ public class OMETiffPyramidizerExporter {
 			File f = new File(path);
 			String imageName = FilenameUtils.removeExtension(f.getName());
 			return new OMETiffPyramidizerExporter(sources, converters, unit, f, tileX,
-				tileY, nResolutions, downSample, compression, imageName, nThreads,
+				tileY, nResolutions, downSample, compression, imageName, idToChannels, nThreads,
 				maxTilesInQueue, taskService, overridePixSize, voxSizeX, voxSizeY,
 				voxSizeZ, rangeC, rangeZ, rangeT, compressTempFiles);
 		}
 
-	}
+
+    }
 
 	public static int getMaxTimepoint(Source<?> source) {
 		if (!source.isPresent(0)) {
