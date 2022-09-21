@@ -134,8 +134,8 @@ public class KheopsBatchCommand implements Command {
                         SourceAndConverter[] sources = sourcesInfo.idToSources.get(iSeries).toArray(new SourceAndConverter[0]);
 
                         if (nSeries>1) {
-                            if (sourcesInfo.idToNames.containsKey(iSeries)) {
-                                fileNameWithOutExt += "_" + sourcesInfo.idToNames.get(iSeries);
+                            if (sourcesInfo.idToSeriesNumber.containsKey(iSeries)) {
+                                fileNameWithOutExt += "_" + sourcesInfo.idToSeriesNumber.get(sourcesInfo.seriesToId.get(iSeries)).getName();
                             } else {
                                 fileNameWithOutExt += "_" + iSeries;
                             }
@@ -164,40 +164,44 @@ public class KheopsBatchCommand implements Command {
 
                         File output_path = new File(output_dir, fileNameWithOutExt);
 
-                        int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0,0).max(0),sources[0].getSpimSource().getSource(0,0).max(1));
+                        if (output_path.exists()) {
+                            IJ.log("Error: file "+output_path.getAbsolutePath()+" already exists. Skipped!");
+                        } else {
+                            int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0,0).max(0),sources[0].getSpimSource().getSource(0,0).max(1));
 
-                        int nResolutions = 1;
+                            int nResolutions = 1;
 
-                        while (sizeFullResolution>tileSize) {
-                            sizeFullResolution/=2;
-                            nResolutions++;
-                        }
-
-                        try {
-
-                            OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
-                                    .compression(compression)
-                                    .compressTemporaryFiles(compress_temp_files)
-                                    .nThreads(0)
-                                    .downsample(2)
-                                    .nResolutionLevels(nResolutions)
-                                    .micrometer()
-                                    .rangeT(range_frames)
-                                    .rangeC(range_channels)
-                                    .rangeZ(range_slices)
-                                    .monitor(taskService)
-                                    .savePath(output_path.getAbsolutePath())
-                                    .tileSize(tileSize, tileSize);
-
-                            if (override_voxel_size) {
-                                builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
+                            while (sizeFullResolution>tileSize) {
+                                sizeFullResolution/=2;
+                                nResolutions++;
                             }
 
-                            builder.create(sources).export();
-                            IJ.log("Processing "+input_path+": done.");
-                        } catch (Exception e) {
-                            IJ.log("Error with "+fileNameWithOutExt+" export.");
-                            e.printStackTrace();
+                            try {
+
+                                OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
+                                        .compression(compression)
+                                        .compressTemporaryFiles(compress_temp_files)
+                                        .nThreads(0)
+                                        .downsample(2)
+                                        .nResolutionLevels(nResolutions)
+                                        .micrometer()
+                                        .rangeT(range_frames)
+                                        .rangeC(range_channels)
+                                        .rangeZ(range_slices)
+                                        .monitor(taskService)
+                                        .savePath(output_path.getAbsolutePath())
+                                        .tileSize(tileSize, tileSize);
+
+                                if (override_voxel_size) {
+                                    builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
+                                }
+
+                                builder.create(sources).export();
+                                IJ.log("Processing "+input_path+": done.");
+                            } catch (Exception e) {
+                                IJ.log("Error with "+fileNameWithOutExt+" export.");
+                                e.printStackTrace();
+                            }
                         }
 
                     });

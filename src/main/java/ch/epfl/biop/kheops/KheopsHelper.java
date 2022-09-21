@@ -71,9 +71,9 @@ public class KheopsHelper {
 
         Map<Integer, SourceAndConverter> idToSource = new SourceAndConverterFromSpimDataCreator(asd).getSetupIdToSourceAndConverter();
 
-        Map<Integer, SeriesNumber> idToSeries = new HashMap<>();
-        Map<Integer, String> idToNames = new HashMap<>();
+        Map<Integer, SeriesNumber> idToSeriesNumber = new HashMap<>();
         Map<Integer, String> idToChannels = new HashMap<>();
+        Map<Integer, Integer> seriesToId = new HashMap<>();
 
         idToSource.keySet().stream()
                 .forEach(id -> {
@@ -81,9 +81,9 @@ public class KheopsHelper {
                     SeriesNumber sn = bvs.getAttribute(SeriesNumber.class);
                     Channel channel = bvs.getAttribute(Channel.class);
                     if (sn!=null) {
-                        idToSeries.put(id, sn);
-                        idToNames.put(id, sn.getName());
+                        idToSeriesNumber.put(id, sn);
                         idToChannels.put(id, channel.getName());
+                        seriesToId.put(sn.getId(), id);
                     }
                     Displaysettings displaysettings = bvs.getAttribute(Displaysettings.class);
                     if (displaysettings!=null) {
@@ -97,7 +97,7 @@ public class KheopsHelper {
 
         for (int id = 0; id<nSources; id++) {
             SourceAndConverter source = idToSource.get(id);
-            int sn_id = idToSeries.get(id).getId();
+            int sn_id = idToSeriesNumber.get(id).getId();
             if (!idToSacs.containsKey(sn_id)) {
                 idToSacs.put(sn_id, new ArrayList<>());
             }
@@ -107,16 +107,18 @@ public class KheopsHelper {
         SourcesInfo info = new SourcesInfo();
 
         info.idToSources = idToSacs;
-        info.idToNames = idToNames;
+        info.idToSeriesNumber = idToSeriesNumber;
         info.idToChannels = idToChannels;
+        info.seriesToId = seriesToId;
 
         return info;
     }
 
     public static class SourcesInfo {
         public Map<Integer, List<SourceAndConverter>> idToSources;
-        public Map<Integer, String> idToNames;
+        public Map<Integer, SeriesNumber> idToSeriesNumber;
         public Map<Integer, String> idToChannels;
+        public Map<Integer, Integer> seriesToId;
     }
 
     private static boolean boundSpimDataCache(AbstractSpimData<?> asd, int nBlocks, int nThreads, int nPriorities) {

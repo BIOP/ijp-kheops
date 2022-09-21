@@ -35,7 +35,9 @@ import org.scijava.task.TaskService;
 import java.io.File;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -79,7 +81,7 @@ public class KheopsCommand implements Command {
     @Parameter(label="Voxel Z size in micrometer (Z)", style="format:#.000")
     double vox_size_z;
 
-    Set<String> paths = new HashSet<>();
+    //Set<String> paths = new HashSet<>();
     public static Consumer<String> logger = (str) -> IJ.log(str);
 
     @Parameter
@@ -117,6 +119,36 @@ public class KheopsCommand implements Command {
 
         if (nSeries==1) process_series_in_parallel = false;
 
+        Map<Integer, String> indexToFilePath = new HashMap<>();
+        Set<String> paths = new HashSet<>();
+
+        IntStream.range(0,nSeries).forEach(iSeries -> {
+            String fileNameWithOutExt = FilenameUtils.removeExtension(fileName);
+            if (nSeries>1) {
+                if (sourcesInfo.idToSeriesNumber.containsKey(iSeries)) {
+                    fileNameWithOutExt += "_" + sourcesInfo.idToSeriesNumber.get(sourcesInfo.seriesToId.get(iSeries)).getName();
+                } else {
+                    fileNameWithOutExt += "_" + iSeries;
+                }
+            }
+            boolean appendSuffix = false;
+            int counter = 0;
+            if (paths.contains(fileNameWithOutExt)) {
+                fileNameWithOutExt+="_s"+iSeries;
+            }
+            while (paths.contains(fileNameWithOutExt)) {
+                if (appendSuffix) {
+                    fileNameWithOutExt = fileNameWithOutExt.substring(0,fileNameWithOutExt.length()-2)+"_"+counter;
+                } else {
+                    fileNameWithOutExt += "_"+counter;
+                }
+                appendSuffix = true;
+                counter++;
+            }
+            paths.add(fileNameWithOutExt);
+            indexToFilePath.put(iSeries, fileNameWithOutExt+".ome.tiff");
+        });
+
         IntStream idStream =  IntStream.range(0,nSeries);
 
         if (process_series_in_parallel) idStream.parallel();
@@ -124,77 +156,51 @@ public class KheopsCommand implements Command {
         final boolean parallelProcess = process_series_in_parallel;
 
         idStream.forEach(iSeries -> {
-
-            String fileNameWithOutExt = FilenameUtils.removeExtension(fileName);
             SourceAndConverter[] sources = sourcesInfo.idToSources.get(iSeries).toArray(new SourceAndConverter[0]);
 
-            if (nSeries>1) {
-                if (sourcesInfo.idToNames.containsKey(iSeries)) {
-                    fileNameWithOutExt += "_" + sourcesInfo.idToNames.get(iSeries);
-                } else {
-                    fileNameWithOutExt += "_" + iSeries;
-                }
-            }
+            File output_path = new File(output_dir, indexToFilePath.get(iSeries));
 
-            // avoid duplicate names
-            synchronized (paths) {
-                boolean appendSuffix = false;
-                int counter = 0;
-                if (paths.contains(fileNameWithOutExt)) {
-                    fileNameWithOutExt+="_s"+iSeries;
+            if (output_path.exists()) {
+                IJ.log("Error: file "+output_path.getAbsolutePath()+" already exists. Skipped!");
+            } else {
+
+                int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0, 0).max(0), sources[0].getSpimSource().getSource(0, 0).max(1));
+
+                int nResolutions = 1;
+
+                while (sizeFullResolution > tileSize) {
+                    sizeFullResolution /= 2;
+                    nResolutions++;
                 }
-                while (paths.contains(fileNameWithOutExt)) {
-                    if (appendSuffix) {
-                        fileNameWithOutExt = fileNameWithOutExt.substring(0,fileNameWithOutExt.length()-2)+"_"+counter;
-                    } else {
-                        fileNameWithOutExt += "_"+counter;
+
+                try {
+
+                    OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
+                            .compression(compression)
+                            .compressTemporaryFiles(compress_temp_files)
+                            .maxTilesInQueue(numberOfBlocksComputedInAdvance)
+                            .nThreads(parallelProcess ? 0 : nThreads)
+                            .downsample(2)
+                            .nResolutionLevels(nResolutions)
+                            .micrometer()
+                            .rangeT(range_frames)
+                            .rangeC(range_channels)
+                            .rangeZ(range_slices)
+                            .channelNames(sourcesInfo.idToChannels)
+                            .savePath(output_path.getAbsolutePath())
+                            .monitor(taskService)
+                            .tileSize(tileSize, tileSize);
+
+                    if (override_voxel_size) {
+                        builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
                     }
-                    appendSuffix = true;
-                    counter++;
+
+                    builder.create(sources).export();
+
+                } catch (Exception e) {
+                    IJ.log("Error with " + output_path + " export.");
+                    e.printStackTrace();
                 }
-                paths.add(fileNameWithOutExt);
-            }
-
-            fileNameWithOutExt+=".ome.tiff";
-
-            File output_path = new File(output_dir, fileNameWithOutExt);
-
-            int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0,0).max(0),sources[0].getSpimSource().getSource(0,0).max(1));
-
-            int nResolutions = 1;
-
-            while (sizeFullResolution>tileSize) {
-                sizeFullResolution/=2;
-                nResolutions++;
-            }
-
-            try {
-
-                OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
-                        .compression(compression)
-                        .compressTemporaryFiles(compress_temp_files)
-                        .maxTilesInQueue(numberOfBlocksComputedInAdvance)
-                        .nThreads(parallelProcess?0:nThreads)
-                        .downsample(2)
-                        .nResolutionLevels(nResolutions)
-                        .micrometer()
-                        .rangeT(range_frames)
-                        .rangeC(range_channels)
-                        .rangeZ(range_slices)
-                        .channelNames(sourcesInfo.idToChannels)
-                        .savePath(output_path.getAbsolutePath())
-                        .monitor(taskService)
-                        .tileSize(tileSize, tileSize);
-
-                if (override_voxel_size) {
-                    builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
-                }
-
-                builder.create(sources).export();
-
-            } catch (Exception e) {
-                IJ.log("Error with "+fileNameWithOutExt+" export.");
-                e.printStackTrace();
             }
 
         });
