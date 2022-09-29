@@ -11,7 +11,7 @@
 
 	<groupId>ch.epfl.biop</groupId>
 	<artifactId>ijp-kheops</artifactId>
-	<version>0.3.4-SNAPSHOT</version>
+	<version>0.3.4</version>
 
 	<name>BIOP Kheops Command</name>
 	<description>IJ2 commands that use bio-formats to create pyramidal ome.tiff</description>
@@ -91,7 +91,7 @@
 	<scm>
 		<connection>scm:git:https://github.com/BIOP/ijp-kheops</connection>
 		<developerConnection>scm:git:git@github.com:BIOP/ijp-kheops</developerConnection>
-		<tag>HEAD</tag>
+		<tag>ijp-kheops-0.3.4</tag>
 		<url>https://github.com/BIOP/ijp-kheops</url>
 	</scm>
 	<issueManagement>
