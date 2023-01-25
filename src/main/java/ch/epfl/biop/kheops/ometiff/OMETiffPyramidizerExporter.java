@@ -22,9 +22,12 @@
 
 package ch.epfl.biop.kheops.ometiff;
 
+import bdv.BigDataViewer;
+import bdv.util.RandomAccessibleIntervalSource;
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.kheops.CZTRange;
+import loci.common.DebugTools;
 import loci.common.image.IImageScaler;
 import loci.formats.MetadataTools;
 import loci.formats.in.OMETiffReader;
@@ -36,6 +39,7 @@ import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealPoint;
 import net.imglib2.display.ColorConverter;
+import net.imglib2.position.FunctionRandomAccessible;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.NumericType;
@@ -182,13 +186,17 @@ public class OMETiffPyramidizerExporter {
 		width = (int) model.getSource(0, 0).max(0) + 1;
 		height = (int) model.getSource(0, 0).max(1) + 1;
 
+		// Tile size should be a multiple of 16
+		int tempTileSizeX = tileX;
+		int tempTileSizeY = tileY;
 		if (width<=tileX) {
-			this.tileX = width;
-		} else this.tileX = tileX;
-
+			tempTileSizeX = width;
+		}
 		if (height<=tileY) {
-			this.tileY = height;
-		} else this.tileY = tileY;
+			tempTileSizeX = height;
+		}
+		this.tileX = tempTileSizeX<16?16:Math.round((float)tempTileSizeX / 16.0F) * 16;
+		this.tileY = tempTileSizeY<16?16:Math.round((float)tempTileSizeY / 16.0F) * 16;
 
 		int iniSizeZ = (int) model.getSource(0, 0).max(2) + 1;
 		int iniSizeT = getMaxTimepoint(model);
@@ -864,7 +872,6 @@ public class OMETiffPyramidizerExporter {
 			{
 				previous = iFrame;
 			}
-
 			if (iFrame > 1) {
 				for (int tp = previous; tp < iFrame + 1; ++tp) {
 					if (!source.isPresent(tp)) {
@@ -873,7 +880,6 @@ public class OMETiffPyramidizerExporter {
 					}
 				}
 			}
-
 			return nFrames;
 		}
 	}
