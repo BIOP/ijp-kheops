@@ -22,12 +22,9 @@
 
 package ch.epfl.biop.kheops.ometiff;
 
-import bdv.BigDataViewer;
-import bdv.util.RandomAccessibleIntervalSource;
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.kheops.CZTRange;
-import loci.common.DebugTools;
 import loci.common.image.IImageScaler;
 import loci.formats.MetadataTools;
 import loci.formats.in.OMETiffReader;
@@ -39,7 +36,6 @@ import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.RealPoint;
 import net.imglib2.display.ColorConverter;
-import net.imglib2.position.FunctionRandomAccessible;
 import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.NumericType;
@@ -107,7 +103,6 @@ public class OMETiffPyramidizerExporter {
 
 	private static final Logger logger = LoggerFactory.getLogger(
 		OMETiffPyramidizerExporter.class);
-
 	final long tileX, tileY;
 	final int nResolutionLevels;
 	final int downsample;
@@ -145,7 +140,7 @@ public class OMETiffPyramidizerExporter {
 	final CZTRange range;
 	final Map<Integer, String> idToChannels;
 
-	public OMETiffPyramidizerExporter(Source[] sources,
+	private OMETiffPyramidizerExporter(Source[] sources,
 		ColorConverter[] converters, Unit<Length> unit, File file, int tileX,
 		int tileY, int nResolutionLevels, int downsample, String compression,
 		String name, Map<Integer, String> idToChannels, int nThreads, int maxTilesInQueue, TaskService taskService,

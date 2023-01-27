@@ -2,8 +2,11 @@ import bdv.BigDataViewer;
 import bdv.util.RandomAccessibleIntervalSource;
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
+import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
 import ch.epfl.biop.kheops.ometiff.OMETiffPyramidizerExporter;
+import ch.epfl.biop.kheops.ometiff.WriterSettings;
 import loci.common.DebugTools;
+import loci.formats.meta.IMetadata;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.position.FunctionRandomAccessible;
@@ -15,12 +18,14 @@ public class DemoExport {
 
     public static void main( String[] args )
     {
-        int sizeInPixelX = 32;
-        for (int sizeInPixelY = 33;sizeInPixelY<=64;sizeInPixelY++) {
+        int sizeInPixelX = 512;
+        int sizeInPixelY = 512;
+        //int sizeInPixelX = 32;
+        //for (int sizeInPixelY = 33;sizeInPixelY<=64;sizeInPixelY++) {
             //int sizeInPixel = 68;
             int tileSize = 512;
             final FunctionRandomAccessible<ARGBType> checkerboard = new FunctionRandomAccessible<>(
-                    2,
+                    3,
                     (location, value) -> {
                         value.set(
                                 Math.abs(location.getIntPosition(0)) % 10 +
@@ -28,7 +33,7 @@ public class DemoExport {
                     },
                     ARGBType::new);
 
-            RandomAccessibleInterval<ARGBType> img = Views.interval(checkerboard, new FinalInterval(new long[]{0, 0}, new long[]{sizeInPixelX - 1, sizeInPixelY - 1}));
+            RandomAccessibleInterval<ARGBType> img = Views.interval(checkerboard, new FinalInterval(new long[]{0, 0, 0}, new long[]{sizeInPixelX - 1, sizeInPixelY - 1, 1}));
 
             //ImageJFunctions.show( img  );
 
@@ -41,9 +46,10 @@ public class DemoExport {
             DebugTools.setRootLevel("OFF");
 
             try {
-                String path = "C:\\Users\\nicol\\Desktop\\ometiff\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
+                //String path = "C:\\Users\\nicol\\Desktop\\ometiff\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
+                String path = "F:\\kheops\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
                 System.out.println("Saving "+path);
-                OMETiffPyramidizerExporter.builder()
+                /*OMETiffPyramidizerExporter.builder()
                         .tileSize(tileSize, tileSize) //Math.min(1024,(int)img.dimension(0)), Math.min(256,(int)img.dimension(1)))
                         //.lzw()
                         //.downsample(2)
@@ -55,14 +61,30 @@ public class DemoExport {
                         .nThreads(7)
                         .micrometer()
                         .create(createSourceAndConverter(img))
-                        .export();
+                        .export();*/
+
+                OMETiffExporterBuilder.builder()
+                        .channelName(0,"Channel_0")
+                        .put3DRAI(img)
+
+                        .writeSettings(
+                                WriterSettings.builder()
+                                        .savePath(path)
+                                        .build())
+                        .get().export();
+
             } catch (Exception e) {
                 // TODO Auto-generated catch block
                 e.printStackTrace();
             }
-        }
+
+
+
+        //}
 
         System.out.println( "done");
+
+
     }
 
     public static SourceAndConverter<ARGBType> createSourceAndConverter(RandomAccessibleInterval<ARGBType> img )
