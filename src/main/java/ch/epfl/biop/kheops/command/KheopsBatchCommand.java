@@ -23,7 +23,7 @@ package ch.epfl.biop.kheops.command;
 
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.kheops.KheopsHelper;
-import ch.epfl.biop.kheops.ometiff.OMETiffPyramidizerExporter;
+import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
 import ij.IJ;
 import loci.common.DebugTools;
 import org.apache.commons.io.FilenameUtils;
@@ -178,13 +178,15 @@ public class KheopsBatchCommand implements Command {
 
                             try {
 
-                                OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
+                                OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder builder = OMETiffExporterBuilder.defineData()
+                                        .put(sources)
+                                        .defineMetaData("Image")
+                                        .defineWriteOptions()
                                         .compression(compression)
                                         .compressTemporaryFiles(compress_temp_files)
                                         .nThreads(0)
                                         .downsample(2)
                                         .nResolutionLevels(nResolutions)
-                                        .micrometer()
                                         .rangeT(range_frames)
                                         .rangeC(range_channels)
                                         .rangeZ(range_slices)
@@ -192,11 +194,11 @@ public class KheopsBatchCommand implements Command {
                                         .savePath(output_path.getAbsolutePath())
                                         .tileSize(tileSize, tileSize);
 
-                                if (override_voxel_size) {
+                                /*if (override_voxel_size) {
                                     builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
-                                }
+                                }*/
 
-                                builder.create(sources).export();
+                                builder.create().export();
                                 IJ.log("Processing "+input_path+": done.");
                             } catch (Exception e) {
                                 IJ.log("Error with "+fileNameWithOutExt+" export.");

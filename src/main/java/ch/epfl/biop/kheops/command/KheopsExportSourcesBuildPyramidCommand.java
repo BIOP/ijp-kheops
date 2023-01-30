@@ -108,7 +108,7 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
 
         sacs = sources.toArray(new SourceAndConverter[0]);
 
-        OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter
+        /*OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter
                 .builder().monitor(taskService).downsample(downscaling).rangeC(
                         range_channels).rangeT(range_frames).rangeZ(range_slices)
                 .nResolutionLevels(n_resolution_levels).savePath(file.getAbsolutePath());
@@ -131,7 +131,7 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
         }
         catch (Exception e) {
             e.printStackTrace();
-        }
+        }*/
     }
 
 }

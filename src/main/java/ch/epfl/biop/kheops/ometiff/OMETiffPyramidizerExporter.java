@@ -22,8 +22,6 @@
 
 package ch.epfl.biop.kheops.ometiff;
 
-import bdv.viewer.Source;
-import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.kheops.CZTRange;
 import loci.common.image.IImageScaler;
 import loci.formats.MetadataTools;
@@ -34,26 +32,19 @@ import loci.formats.out.OMETiffWriter;
 import loci.formats.out.PyramidOMETiffWriter;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.RealPoint;
-import net.imglib2.display.ColorConverter;
-import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
 import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
-import ome.codecs.CompressionType;
-import ome.units.UNITS;
 import ome.units.quantity.Length;
-import ome.units.unit.Unit;
+import ome.xml.meta.MetadataConverter;
 import ome.xml.model.enums.DimensionOrder;
 import ome.xml.model.enums.PixelType;
-import ome.xml.model.primitives.Color;
 import ome.xml.model.primitives.PositiveInteger;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.task.Task;
-import org.scijava.task.TaskService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,28 +55,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Export an array of {@link SourceAndConverter} into a OME-TIFF file,
- * potentially multiresolution, if set. The array represents different channels.
- * All Sources should have the same size in XYZCT for the highest resolution
- * level (other resolution levels, if any, are ignored). The builder
- * {@link Builder} should be used to export the
- * sources. (private constructor) Parallelization can occur at the reading
- * level, with a number of threads set with
- * {@link Builder#nThreads(int)}. Writing to HDD is
- * serial. For big planes, tiled images can be saved with
- * {@link Builder#tileSize(int, int)} Lzw compression
- * possible {@link Builder#lzw()} To make a 'pyramid'
- * (= sub resolution levels), specify the number of resolution levels with
- * {@link Builder#nResolutionLevels(int)} and the downscaling with
- * {@link Builder#downsample(int)}. Each resolution levels averages the pixels
- * from the previous resolution level by using {@link AverageImageScaler}. This
- * class should not be memory hungry, the number of data kept into ram should
- * never exceed (max queue size + nThreads) * tile size in bytes, even with
- * really large dataset. A {@link Task} object can be given in
- * {@link Builder#monitor(TaskService)}to monitor the
- * saving and also to cancel the export (TODO for cancellation). The RAM
- * occupation depends on the caching mechanism (if any) in the input
- * {@link SourceAndConverter} array.
+ * Exports a structure of {@link RandomAccessibleInterval<T>} into a OME-TIFF file,
+ * potentially multiresolution. To build this structure and create the export, one should use the
+ * {@link OMETiffExporterBuilder} builder, which validates the structure
+ * and allows to set OME metadata.
+ *
  *
  * @author Nicolas Chiaruttini, EPFL, 2022
  */
@@ -96,138 +70,146 @@ import java.util.concurrent.atomic.AtomicLong;
 // for building the next resolution level
 // original script https://github.com/ome/bio-formats-examples/blob/master/src/main/java/GeneratePyramidResolutions.java
 // RAAAAH https://forum.image.sc/t/save-ome-tiff-as-8-bit-rgb-for-qupath/61281/3
+// TODO : Scale Z pixel size
+// Perf potential improvement : dual writing current res level and final
 
-public class OMETiffPyramidizerExporter {
-
-	String[] COMPRESSIONS = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"};
+public class OMETiffPyramidizerExporter<T extends NumericType<T>> {
 
 	private static final Logger logger = LoggerFactory.getLogger(
 		OMETiffPyramidizerExporter.class);
+
+	// ------------ Data and metadata
+	final Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI;
+	final IMetadata oriMetadata;
+	final int oriMetaDataSeries;
+	// ------------ Saving options
+	final CZTRange range; // To save a subset of C Z or T
 	final long tileX, tileY;
 	final int nResolutionLevels;
 	final int downsample;
-
-	final File file;
-	final Source[] sources;
-	final String name;
-	final ColorConverter[] converters;
-	final Unit<Length> unit;
 	final String compression;
 	final boolean compressTempFile;
-	final AtomicLong writtenTiles = new AtomicLong();
-	long totalTiles;
+	final File file;
+	final int nThreads;
+	final int dstSeries = 0;
 
+	// ----------- Information collected before the export
+	long totalTiles;
 	// final int nChannels;
-	final NumericType pixelType;
+	final T pixelInstance;
 	final int width, height, sizeT, sizeC, sizeZ;
-	final double[] voxelSizes = new double[3];
-	final RealPoint origin = new RealPoint(3);
 	final Map<Integer, Integer> mapResToWidth = new HashMap<>();
 	final Map<Integer, Integer> mapResToHeight = new HashMap<>();
-
-	final Map<TileIterator.IntsKey, byte[]> computedBlocks;
-
 	final Map<Integer, Integer> resToNY = new HashMap<>();
 	final Map<Integer, Integer> resToNX = new HashMap<>();
+
+	final boolean isLittleEndian;
+	final boolean isRGB;
+	final boolean isInterleaved;
+	final boolean isFloat;
+	final int bytesPerPixel;
+
+	// ------------ Fields updated live during the saving
+	final AtomicLong writtenTiles = new AtomicLong();
+	final Map<TileIterator.IntsKey, byte[]> computedBlocks;
 	final TileIterator tileIterator;
-	final int nThreads;
 	final Task writerTask;
-
 	final Object tileLock = new Object();
+	final ThreadLocal<OMETiffReader> localReader = new ThreadLocal<>(); // One reader per thread
+	final ThreadLocal<IImageScaler> localScaler = new ThreadLocal<>(); // One scaler per thread
+	final ThreadLocal<Integer> localResolution = new ThreadLocal<>(); // Current resolution level of the thread
+	volatile int currentLevelWritten = -1;
 
-	final boolean overridePixelSize;
-	final double voxSX, voxSY, voxSZ;
-	final CZTRange range;
-	final Map<Integer, String> idToChannels;
-
-	private OMETiffPyramidizerExporter(Source[] sources,
-		ColorConverter[] converters, Unit<Length> unit, File file, int tileX,
-		int tileY, int nResolutionLevels, int downsample, String compression,
-		String name, Map<Integer, String> idToChannels, int nThreads, int maxTilesInQueue, TaskService taskService,
-		boolean overridePixelSize, double voxSX, double voxSY, double voxSZ,
-		String rangeC, String rangeZ, String rangeT, boolean compressTempFile) throws Exception
-	{
-		this.idToChannels = idToChannels;
-		this.compressTempFile = compressTempFile;
-		this.overridePixelSize = overridePixelSize;
-		this.voxSX = voxSX;
-		this.voxSY = voxSY;
-		this.voxSZ = voxSZ;
-		if (taskService != null) {
-			this.writerTask = taskService.createTask("Writing: " + file.getName());
+	protected OMETiffPyramidizerExporter(
+			// Image data and metadata, + czt optional subsetting
+			Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI, // Image data
+			IMetadata originalOmeMeta, int originalSeries,
+			// Writing options
+			OMETiffExporterBuilder.WriterOptions writerSettings) throws Exception {
+		// Monitoring
+		if (writerSettings.taskService != null) {
+			this.writerTask = writerSettings.taskService.createTask("Writing: " + new File(writerSettings.path).getName());
 		}
 		else {
 			this.writerTask = null;
 		}
-		Source model = sources[0];
 
-		this.downsample = downsample;
-		this.nResolutionLevels = nResolutionLevels;
+		// Collect data
+		this.ctToRAI = ctToRAI;
+		this.oriMetadata = originalOmeMeta;
+		this.oriMetaDataSeries = originalSeries;
 
-		this.unit = unit;
-		this.file = file;
-		this.sources = sources;
-		this.name = name;
-		this.converters = converters;
-		this.compression = compression;
-		writtenTiles.set(0);
+		// Collecting useful data before export
+		RandomAccessibleInterval<T> model = ctToRAI.get(0).get(0);
+		pixelInstance = model.getAt(0,0,0);
 
-		if (!(model.getType() instanceof NumericType))
-			throw new UnsupportedOperationException("Can't export pixel type " + model
-				.getType().getClass());
+		isRGB = pixelInstance instanceof ARGBType;
+		isInterleaved = isRGB;
+		isLittleEndian = true;
 
-		pixelType = (NumericType) model.getType();
+		if (pixelInstance instanceof UnsignedShortType) {
+			bytesPerPixel = 2;
+			isFloat = false;
+		}
+		else if (pixelInstance instanceof UnsignedByteType) {
+			bytesPerPixel = 1;
+			isFloat = false;
+		}
+		else if (pixelInstance instanceof FloatType) {
+			bytesPerPixel = 4;
+			isFloat = true;
+		}
+		else if (pixelInstance instanceof ARGBType) {
+			bytesPerPixel = 1;
+			isFloat = false;
+		} else {
+			throw new UnsupportedOperationException("Unhandled pixel type class: " +
+					pixelInstance.getClass().getName());
+		}
 
-		width = (int) model.getSource(0, 0).max(0) + 1;
-		height = (int) model.getSource(0, 0).max(1) + 1;
+		width = originalOmeMeta.getPixelsSizeX(originalSeries).getValue();
+		height = originalOmeMeta.getPixelsSizeY(originalSeries).getValue(); // Check that it's not wrong with a problem of one
 
+		// For exporting a subset of the original image
+		int iniSizeZ = originalOmeMeta.getPixelsSizeZ(originalSeries).getValue();
+		int iniSizeT = originalOmeMeta.getPixelsSizeT(originalSeries).getValue();
+		int iniSizeC = originalOmeMeta.getPixelsSizeC(originalSeries).getValue();
+		range = CZTRange.builder().setC(writerSettings.rangeC).setT(writerSettings.rangeT).setZ(writerSettings.rangeT).get(isRGB ? 1:iniSizeC, iniSizeZ, iniSizeT);
+		sizeC = range.getRangeC().size();
+		sizeZ = range.getRangeZ().size();
+		sizeT = range.getRangeT().size();
+		System.out.println("#C"+sizeC+"#Z"+sizeZ+"#T"+sizeT);
+
+		mapResToWidth.put(0, width);
+		mapResToHeight.put(0, height);
+
+		for (int i = 0; i < writerSettings.nResolutions - 1; i++) {
+			mapResToWidth.put(i + 1, (int) (width / Math.pow(writerSettings.downSample, i + 1)));
+			mapResToHeight.put(i + 1, (int) (height / Math.pow(writerSettings.downSample, i + 1)));
+		}
+
+		// Saving options
+		this.compressTempFile = writerSettings.compressTempFiles;
+		this.downsample = writerSettings.downSample;
+		this.nResolutionLevels = writerSettings.nResolutions;
+		this.file = new File(writerSettings.path);
+		this.compression = writerSettings.compression;
+		this.nThreads = writerSettings.nThreads;
 		// Tile size should be a multiple of 16
-		int tempTileSizeX = tileX;
-		int tempTileSizeY = tileY;
-		if (width<=tileX) {
+		int tempTileSizeX = writerSettings.tileX;
+		int tempTileSizeY = writerSettings.tileY;
+		if (width<=writerSettings.tileX) {
 			tempTileSizeX = width;
 		}
-		if (height<=tileY) {
+		if (height<=writerSettings.tileY) {
 			tempTileSizeX = height;
 		}
 		this.tileX = tempTileSizeX<16?16:Math.round((float)tempTileSizeX / 16.0F) * 16;
 		this.tileY = tempTileSizeY<16?16:Math.round((float)tempTileSizeY / 16.0F) * 16;
 
-		int iniSizeZ = (int) model.getSource(0, 0).max(2) + 1;
-		int iniSizeT = getMaxTimepoint(model);
-		int iniSizeC = sources.length;
-		range = CZTRange.builder().setC(rangeC).setT(rangeT).setZ(rangeZ).get(
-			iniSizeC, iniSizeZ, iniSizeT);
-		sizeC = range.getRangeC().size();
-		sizeZ = range.getRangeZ().size();
-		sizeT = range.getRangeT().size();
-
-		AffineTransform3D mat = new AffineTransform3D();
-		model.getSourceTransform(0, 0, mat);
-
-		double[] m = mat.getRowPackedCopy();
-
-		for (int d = 0; d < 3; ++d) {
-			voxelSizes[d] = Math.sqrt(m[d] * m[d] + m[d + 4] * m[d + 4] + m[d + 8] *
-				m[d + 8]);
-		}
-
-		AffineTransform3D transform3D = new AffineTransform3D();
-		model.getSourceTransform(0, 0, transform3D);
-		transform3D.apply(origin, origin);
-
-		mapResToWidth.put(0, width);
-		mapResToHeight.put(0, height);
-
-		for (int i = 0; i < nResolutionLevels - 1; i++) {
-			mapResToWidth.put(i + 1, (int) (width / Math.pow(downsample, i + 1)));
-			mapResToHeight.put(i + 1, (int) (height / Math.pow(downsample, i + 1)));
-		}
-
 		// One iteration to count the number of tiles
-
 		// some assertion : same dimensions for all nr and c and t
-		for (int r = 0; r < nResolutionLevels; r++) {
+		for (int r = 0; r < writerSettings.nResolutions; r++) {
 			int nXTiles;
 			int nYTiles;
 			int maxX, maxY;
@@ -239,29 +221,18 @@ public class OMETiffPyramidizerExporter {
 				maxX = width;
 				maxY = height;
 			}
-			nXTiles = (int) Math.ceil(maxX / (double) tileX);
-			nYTiles = (int) Math.ceil(maxY / (double) tileY);
+			nXTiles = (int) Math.ceil(maxX / (double) writerSettings.tileX);
+			nYTiles = (int) Math.ceil(maxY / (double) writerSettings.tileY);
 			resToNX.put(r, nXTiles);
 			resToNY.put(r, nYTiles);
 		}
 
+		// Initialise transient variables for exporting
+		writtenTiles.set(0);
 		tileIterator = new TileIterator(nResolutionLevels, sizeT, sizeC, sizeZ,
-			resToNY, resToNX, maxTilesInQueue);
-		this.nThreads = nThreads;
-		computedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1); // should be
-																																// enough to
-																																// avoiding
-																																// overlap of
-																																// hash
+			resToNY, resToNX, writerSettings.maxTilesInQueue);
+		computedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1); // should be enough to avoiding overlap of hash
 	}
-
-	final ThreadLocal<OMETiffReader> localReader = new ThreadLocal<>(); // One
-																																			// object
-	// per thread
-	final ThreadLocal<IImageScaler> localScaler = new ThreadLocal<>();
-	final ThreadLocal<Integer> localResolution = new ThreadLocal<>();
-
-	volatile int currentLevelWritten = -1;
 
 	private void computeTile(TileIterator.IntsKey key) throws Exception {
 		int r = key.array[0];
@@ -293,13 +264,14 @@ public class OMETiffPyramidizerExporter {
 
 		if (r == 0) {
 			localResolution.set(r);
-			RandomAccessibleInterval<NumericType<?>> rai = sources[range.getRangeC()
-				.get(c)].getSource(range.getRangeT().get(t), r);
-			RandomAccessibleInterval<NumericType<?>> slice = Views.hyperSlice(rai, 2,
+			RandomAccessibleInterval<T> rai =
+					ctToRAI.get(range.getRangeC()
+							.get(c)).get(range.getRangeT().get(t));
+			RandomAccessibleInterval<T> slice = Views.hyperSlice(rai, 2,
 				range.getRangeZ().get(z));
 			byte[] tileByte = SourceToByteArray.raiToByteArray(Views.interval(slice,
 				new FinalInterval(new long[] { startX, startY }, new long[] { endX - 1,
-					endY - 1 })), pixelType);
+					endY - 1 })), pixelInstance);
 			computedBlocks.put(key, tileByte);
 		}
 		else {
@@ -380,105 +352,14 @@ public class OMETiffPyramidizerExporter {
 		}
 	}
 
-	boolean isLittleEndian = false;
-	boolean isRGB = false;
-	volatile boolean isInterleaved = false;
-	boolean isFloat = false;
-	int bytesPerPixel;
-
-	private void populateOmeMeta(IMetadata meta, int series) {
-
-		meta.setImageID("Image:" + series, series);
-		meta.setPixelsID("Pixels:" + series, series);
-		meta.setImageName(name, series);
-
-		if (pixelType instanceof UnsignedShortType) {
-			meta.setPixelsType(PixelType.UINT16, series);
-			bytesPerPixel = 2;
-			isInterleaved = false;
-			meta.setPixelsInterleaved(false, series);
-			meta.setPixelsDimensionOrder(DimensionOrder.XYZCT, series);
-		}
-		else if (pixelType instanceof UnsignedByteType) {
-			meta.setPixelsType(PixelType.UINT8, series);
-			bytesPerPixel = 1;
-			isInterleaved = false;
-			meta.setPixelsInterleaved(false, series);
-			meta.setPixelsDimensionOrder(DimensionOrder.XYZCT, series);
-		}
-		else if (pixelType instanceof FloatType) {
-			meta.setPixelsType(PixelType.FLOAT, series);
-			bytesPerPixel = 4;
-			isFloat = true;
-			isInterleaved = false;
-			meta.setPixelsInterleaved(false, series);
-			meta.setPixelsDimensionOrder(DimensionOrder.XYZCT, series);
-		}
-		else if (pixelType instanceof ARGBType) {
-			isInterleaved = true;
-			isRGB = true;
-			bytesPerPixel = 1;
-			meta.setPixelsType(PixelType.UINT8, series);
-			meta.setPixelsDimensionOrder(DimensionOrder.XYCZT, series);
-			meta.setPixelsInterleaved(true, series);
-		}
-		else {
-			throw new UnsupportedOperationException("Unhandled pixel type class: " +
-				pixelType.getClass().getName());
-		}
-
-		meta.setPixelsBigEndian(!isLittleEndian, series);
-
-		// Set resolutions
-		meta.setPixelsSizeX(new PositiveInteger(width), series);
-		meta.setPixelsSizeY(new PositiveInteger(height), series);
-		meta.setPixelsSizeZ(new PositiveInteger(sizeZ), series);
-		meta.setPixelsSizeT(new PositiveInteger(sizeT), series);
-		meta.setPixelsSizeC(new PositiveInteger(isRGB ? sizeC * 3 : sizeC), series);
-
+	private void populateOmeMeta(IMetadata metaDst, int seriesDst, IMetadata metaSrc, int seriesSrc) {
 		if (isRGB) {
-			meta.setChannelID("Channel:0", series, 0);
-			if (idToChannels.containsKey(range.getRangeC().get(0))) {
-				meta.setChannelName(idToChannels.get(range.getRangeC().get(0)), series, 0);
-			} else {
-				meta.setChannelName("Channel_0", series, 0);
-			}
-			meta.setChannelSamplesPerPixel(new PositiveInteger(3), series, 0);
+			MetadataConverter.convertChannels(metaSrc,seriesSrc,0,metaDst,seriesDst,0,false);
+		} else for (int c = 0; c < sizeC; c++) {
+			int srcC = range.getRangeC().get(c);
+			System.out.println("srcC = "+srcC+" dstC = "+c);
+			MetadataConverter.convertChannels(metaSrc,seriesSrc,srcC,metaDst,seriesDst,c,false);
 		}
-		else {
-			for (int c = 0; c < sizeC; c++) {
-				meta.setChannelID("Channel:0:" + c, series, c);
-				meta.setChannelSamplesPerPixel(new PositiveInteger(1), series, c);
-				int colorCode = converters[range.getRangeC().get(c)].getColor().get();
-				int colorRed = ARGBType.red(colorCode);
-				int colorGreen = ARGBType.green(colorCode);
-				int colorBlue = ARGBType.blue(colorCode);
-				int colorAlpha = ARGBType.alpha(colorCode);
-				meta.setChannelColor(new Color(colorRed, colorGreen, colorBlue,
-					colorAlpha), series, c);
-				if (idToChannels.containsKey(range.getRangeC().get(c))) {
-					meta.setChannelName(idToChannels.get(range.getRangeC().get(c)), series, c);
-				} else {
-					meta.setChannelName("Channel_" + c, series, c);
-				}
-			}
-		}
-
-		if (overridePixelSize) {
-			meta.setPixelsPhysicalSizeX(new Length(voxSX, unit), series);
-			meta.setPixelsPhysicalSizeY(new Length(voxSY, unit), series);
-			meta.setPixelsPhysicalSizeZ(new Length(voxSZ, unit), series);
-		}
-		else {
-			meta.setPixelsPhysicalSizeX(new Length(voxelSizes[0], unit), series);
-			meta.setPixelsPhysicalSizeY(new Length(voxelSizes[1], unit), series);
-			meta.setPixelsPhysicalSizeZ(new Length(voxelSizes[2], unit), series);
-		}
-		// set Origin in XYZ
-		// TODO : check if enough or other planes need to be set ?
-		meta.setPlanePositionX(new Length(origin.getDoublePosition(0), unit), 0, 0);
-		meta.setPlanePositionY(new Length(origin.getDoublePosition(1), unit), 0, 0);
-		meta.setPlanePositionZ(new Length(origin.getDoublePosition(2), unit), 0, 0);
 	}
 
 	OMETiffWriter currentLevelWriter;
@@ -490,19 +371,17 @@ public class OMETiffPyramidizerExporter {
 		IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
 		IMetadata currentLevelOmeMeta = MetadataTools.createOMEXMLMetadata();
 
-		isLittleEndian = false;
-		isRGB = false;
-		isInterleaved = false;
-
-		int series = 0;
-		populateOmeMeta(omeMeta, series);
-		populateOmeMeta(currentLevelOmeMeta, series);
+		MetadataConverter.convertMetadata(oriMetadata, omeMeta);
+		MetadataConverter.convertMetadata(oriMetadata, currentLevelOmeMeta);
+		// IMetadata metaDst, int seriesDst, IMetadata metaSrc, int seriesSrc
+		populateOmeMeta(omeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries );
+		populateOmeMeta(currentLevelOmeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries);
 
 		for (int r = 0; r < nResolutionLevels - 1; r++) {
 			((IPyramidStore) omeMeta).setResolutionSizeX(new PositiveInteger(
-				mapResToWidth.get(r + 1)), series, r + 1);
+				mapResToWidth.get(r + 1)), dstSeries, r + 1);
 			((IPyramidStore) omeMeta).setResolutionSizeY(new PositiveInteger(
-				mapResToHeight.get(r + 1)), series, r + 1);
+				mapResToHeight.get(r + 1)), dstSeries, r + 1);
 		}
 
 		// setup writer for multiresolution file
@@ -512,11 +391,11 @@ public class OMETiffPyramidizerExporter {
 																				// problematic!
 		writer.setBigTiff(true);
 		writer.setId(file.getAbsolutePath());
-		writer.setSeries(series);
+		writer.setSeries(dstSeries);
 		writer.setCompression(compression);
 		writer.setTileSizeX((int) tileX);
 		writer.setTileSizeY((int) tileY);
-		writer.setInterleaved(omeMeta.getPixelsInterleaved(series));
+		writer.setInterleaved(omeMeta.getPixelsInterleaved(dstSeries));
 		totalTiles = 0;
 
 		// Count total number of tiles
@@ -553,17 +432,19 @@ public class OMETiffPyramidizerExporter {
 				currentLevelWriter = new OMETiffWriter();
 				currentLevelWriter.setWriteSequentially(true); // Setting this to false
 																												// can be problematic!
-				currentLevelOmeMeta.setPixelsSizeX(new PositiveInteger(maxX), series);
-				currentLevelOmeMeta.setPixelsSizeY(new PositiveInteger(maxY), series);
-				currentLevelOmeMeta.setPixelsPhysicalSizeX(new Length(voxelSizes[0] *
-					Math.pow(downsample, r + 1), unit), series);
-				currentLevelOmeMeta.setPixelsPhysicalSizeY(new Length(voxelSizes[1] *
-					Math.pow(downsample, r + 1), unit), series);
+				currentLevelOmeMeta.setPixelsSizeX(new PositiveInteger(maxX), dstSeries);
+				currentLevelOmeMeta.setPixelsSizeY(new PositiveInteger(maxY), dstSeries);
+
+				currentLevelOmeMeta.setPixelsPhysicalSizeX(
+						new Length(omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).value().doubleValue() * Math.pow(downsample, r + 1), omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()), dstSeries);
+				currentLevelOmeMeta.setPixelsPhysicalSizeY(
+						new Length(omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries).value().doubleValue() * Math.pow(downsample, r + 1), omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()), dstSeries);
+
 				currentLevelOmeMeta.setPixelsDimensionOrder(DimensionOrder.XYCZT, 0);
 				currentLevelWriter.setMetadataRetrieve(currentLevelOmeMeta);
 				currentLevelWriter.setBigTiff(true);
 				currentLevelWriter.setId(getFileName(r));
-				currentLevelWriter.setSeries(series);
+				currentLevelWriter.setSeries(dstSeries);
 				if (compressTempFile) currentLevelWriter.setCompression(compression);
 				currentLevelWriter.setTileSizeX((int) tileX);
 				currentLevelWriter.setTileSizeY((int) tileY);
@@ -673,210 +554,6 @@ public class OMETiffPyramidizerExporter {
 	private String getFileName(int r) {
 		return FilenameUtils.removeExtension(file.getAbsolutePath()) + "_lvl_" + r +
 			".ome.tiff";
-	}
-
-	public static Builder builder() {
-		return new Builder();
-	}
-
-	public static class Builder {
-
-		Unit<Length> unit = UNITS.MILLIMETER;
-		String path;
-		int tileX = Integer.MAX_VALUE; // = no tiling
-		int tileY = Integer.MAX_VALUE; // = no tiling
-		String compression = "Uncompressed";
-		boolean compressTempFiles = false;
-		int nThreads = 0;
-		int maxTilesInQueue = 10;
-		transient TaskService taskService = null;
-		int nResolutions = 5;
-		int downSample = 2;
-		boolean overridePixSize = false;
-		double voxSizeX = -1;
-		double voxSizeY = -1;
-		double voxSizeZ = -1;
-		String rangeC = "";
-		String rangeZ = "";
-		String rangeT = "";
-		Map<Integer, String> idToChannels = new HashMap<>();
-
-		public Builder tileSize(int tileX, int tileY) {
-			this.tileX = tileX;
-			this.tileY = tileY;
-			return this;
-		}
-
-		public Builder downsample(int downsample) {
-			this.downSample = downsample;
-			return this;
-		}
-
-		public Builder nResolutionLevels(int nResolutions) {
-			this.nResolutions = nResolutions;
-			return this;
-		}
-
-		public Builder lzw() {
-			this.compression = CompressionType.LZW.getCompression();
-			return this;
-		}
-
-		/**
-		 * see CompressionTypes
-		 * 
-		 * @return the builder
-		 */
-		public Builder j2k() {
-			this.compression = CompressionType.J2K.getCompression();
-			return this;
-		}
-
-		/**
-		 * see CompressionTypes
-		 * 
-		 * @return the builder
-		 */
-		public Builder j2kLossy() {
-			this.compression = CompressionType.J2K_LOSSY.getCompression();
-			return this;
-		}
-
-		/**
-		 * see CompressionTypes
-		 * 
-		 * @return the builder
-		 */
-		public Builder jpg() {
-			this.compression = CompressionType.JPEG.getCompression();
-			return this;
-		}
-
-		public Builder monitor(TaskService taskService) {
-			this.taskService = taskService;
-			return this;
-		}
-
-		public Builder maxTilesInQueue(int max) {
-			this.maxTilesInQueue = max;
-			return this;
-		}
-
-		public Builder compression(String compression) {
-			this.compression = compression;
-			return this;
-		}
-
-		public Builder compression(int code) {
-			this.compression = CompressionType.get(code).getCompression();
-			return this;
-		}
-
-		public Builder compressTemporaryFiles(boolean compressTempFile) {
-			this.compressTempFiles = compressTempFile;
-			return this;
-		}
-
-		public Builder savePath(String path) {
-			this.path = path;
-			return this;
-		}
-
-		public Builder millimeter() {
-			this.unit = UNITS.MILLIMETER;
-			return this;
-		}
-
-		public Builder micrometer() {
-			this.unit = UNITS.MICROMETER;
-			return this;
-		}
-
-		public Builder unit(Unit unit) {
-			this.unit = unit;
-			return this;
-		}
-
-		public Builder nThreads(int nThreads) {
-			this.nThreads = nThreads;
-			return this;
-		}
-
-		public Builder rangeC(String rangeC) {
-			this.rangeC = rangeC;
-			return this;
-		}
-
-		public Builder rangeZ(String rangeZ) {
-			this.rangeZ = rangeZ;
-			return this;
-		}
-
-		public Builder rangeT(String rangeT) {
-			this.rangeT = rangeT;
-			return this;
-		}
-
-		public Builder setPixelSize(double sX, double sY, double sZ) {
-			overridePixSize = true;
-			voxSizeX = sX;
-			voxSizeY = sY;
-			voxSizeZ = sZ;
-			return this;
-		}
-
-		public Builder channelNames(Map<Integer, String> idToChannels) {
-			this.idToChannels = idToChannels;
-			return this;
-		}
-
-		public OMETiffPyramidizerExporter create(SourceAndConverter... sacs)
-			throws Exception
-		{
-			if (path == null) throw new UnsupportedOperationException(
-				"Path not specified");
-			Source[] sources = new Source[sacs.length];
-			ColorConverter[] converters = new ColorConverter[sacs.length];
-
-			for (int i = 0; i < sacs.length; i++) {
-				sources[i] = sacs[i].getSpimSource();
-				converters[i] = (ColorConverter) sacs[i].getConverter();
-			}
-			File f = new File(path);
-			String imageName = FilenameUtils.removeExtension(f.getName());
-			return new OMETiffPyramidizerExporter(sources, converters, unit, f, tileX,
-				tileY, nResolutions, downSample, compression, imageName, idToChannels, nThreads,
-				maxTilesInQueue, taskService, overridePixSize, voxSizeX, voxSizeY,
-				voxSizeZ, rangeC, rangeZ, rangeT, compressTempFiles);
-		}
-
-
-    }
-
-	public static int getMaxTimepoint(Source<?> source) {
-		if (!source.isPresent(0)) {
-			return 0;
-		}
-		else {
-			int nFrames = 1;
-			int iFrame = 1;
-
-			int previous;
-			for (previous = iFrame; iFrame < 1073741823 && source.isPresent(
-				iFrame); iFrame *= 2)
-			{
-				previous = iFrame;
-			}
-			if (iFrame > 1) {
-				for (int tp = previous; tp < iFrame + 1; ++tp) {
-					if (!source.isPresent(tp)) {
-						nFrames = tp;
-						break;
-					}
-				}
-			}
-			return nFrames;
-		}
 	}
 
 }

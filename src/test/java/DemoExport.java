@@ -2,12 +2,8 @@ import bdv.BigDataViewer;
 import bdv.util.RandomAccessibleIntervalSource;
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
-import ch.epfl.biop.kheops.ometiff.OMETiffExportBuilder;
 import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
-import ch.epfl.biop.kheops.ometiff.OMETiffPyramidizerExporter;
-import ch.epfl.biop.kheops.ometiff.WriterSettings;
 import loci.common.DebugTools;
-import loci.formats.meta.IMetadata;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.position.FunctionRandomAccessible;
@@ -81,7 +77,7 @@ public class DemoExport {
                         .defineMetaData()
                         .defineWriteOptions()
                         .create().export();*/
-                OMETiffExportBuilder.defineData()
+                OMETiffExporterBuilder.defineData()
                         .put3DRAI(img)
                         .put3DRAI(0,1,img)
                         .defineMetaData("Image")
