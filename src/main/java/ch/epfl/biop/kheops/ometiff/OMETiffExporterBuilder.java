@@ -201,7 +201,6 @@ public class OMETiffExporterBuilder<T> {
     }
 
     public OMETiffExporterBuilder<T> copyMetaData(IMetadata meta) {
-        MetadataTools.populateMetadata();
         MetadataConverter.convertMetadata(meta, meta);
         return this;
     }

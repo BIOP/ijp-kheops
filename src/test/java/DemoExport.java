@@ -2,6 +2,7 @@ import bdv.BigDataViewer;
 import bdv.util.RandomAccessibleIntervalSource;
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
+import ch.epfl.biop.kheops.ometiff.OMETiffExportBuilder;
 import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
 import ch.epfl.biop.kheops.ometiff.OMETiffPyramidizerExporter;
 import ch.epfl.biop.kheops.ometiff.WriterSettings;
@@ -28,12 +29,14 @@ public class DemoExport {
                     3,
                     (location, value) -> {
                         value.set(
-                                Math.abs(location.getIntPosition(0)) % 10 +
-                                        (-Math.abs(location.getIntPosition(1))));// % 10 +Math.abs(location.getIntPosition(2)) % 10 );
+                        //        Math.abs(location.getIntPosition(0)) % 10 +
+                        //                (-Math.abs(location.getIntPosition(1)))
+                                ARGBType.rgba(location.getIntPosition(0), location.getIntPosition(1), location.getIntPosition(0)*0,255)
+                        );// % 10 +Math.abs(location.getIntPosition(2)) % 10 );
                     },
                     ARGBType::new);
 
-            RandomAccessibleInterval<ARGBType> img = Views.interval(checkerboard, new FinalInterval(new long[]{0, 0, 0}, new long[]{sizeInPixelX - 1, sizeInPixelY - 1, 1}));
+            RandomAccessibleInterval<ARGBType> img = Views.interval(checkerboard, new FinalInterval(new long[]{0, 0, 0}, new long[]{sizeInPixelX - 1, sizeInPixelY - 1, 0}));
 
             //ImageJFunctions.show( img  );
 
@@ -47,7 +50,7 @@ public class DemoExport {
 
             try {
                 //String path = "C:\\Users\\nicol\\Desktop\\ometiff\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
-                String path = "F:\\kheops\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
+                String path = "C:\\kheops\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
                 System.out.println("Saving "+path);
                 /*OMETiffPyramidizerExporter.builder()
                         .tileSize(tileSize, tileSize) //Math.min(1024,(int)img.dimension(0)), Math.min(256,(int)img.dimension(1)))
@@ -63,7 +66,7 @@ public class DemoExport {
                         .create(createSourceAndConverter(img))
                         .export();*/
 
-                OMETiffExporterBuilder.builder()
+                /*OMETiffExporterBuilder.builder()
                         .channelName(0,"Channel_0")
                         .put3DRAI(img)
 
@@ -72,6 +75,23 @@ public class DemoExport {
                                         .savePath(path)
                                         .build())
                         .get().export();
+
+                OMETiffExportBuilder
+                        .defineData().put3DRAI(img)
+                        .defineMetaData()
+                        .defineWriteOptions()
+                        .create().export();*/
+                OMETiffExportBuilder.defineData()
+                        .put3DRAI(img)
+                        .put3DRAI(0,1,img)
+                        .defineMetaData("Image")
+                        .imageName("Bob")
+                        .voxelPhysicalSizeMicrometer(10,10,2)
+                        .pixelsTimeIncrementInS(0.35)
+                        .defineWriteOptions()
+                        .savePath(path)
+                        .create()
+                        .export();
 
             } catch (Exception e) {
                 // TODO Auto-generated catch block
