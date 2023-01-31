@@ -14,6 +14,9 @@ import ome.codecs.CompressionType;
 import ome.units.UNITS;
 import ome.units.quantity.Length;
 import ome.units.quantity.Time;
+import ome.xml.meta.MetadataConverter;
+import ome.xml.meta.MetadataRetrieve;
+import ome.xml.meta.MetadataStore;
 import ome.xml.model.enums.DimensionOrder;
 import ome.xml.model.enums.PixelType;
 import ome.xml.model.primitives.Color;
@@ -166,12 +169,12 @@ public class OMETiffExporterBuilder {
             final int series = 0;
             IMetadata omeMeta;
             final Data data;
+            final boolean isRGB;
             public MetaDataBuilder(Data data, String imageName) {
                 this.data = data;
                 omeMeta = MetadataTools.createOMEXMLMetadata();
                 final String pixelType;
                 final int samplePerPixel;
-                final boolean isRGB;
                 final String dimensionOrder;
 
                 if (data.pixelInstance instanceof UnsignedShortType) {

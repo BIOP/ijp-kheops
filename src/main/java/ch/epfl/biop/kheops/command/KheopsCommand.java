@@ -27,6 +27,14 @@ import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
 import ch.epfl.biop.kheops.ometiff.OMETiffPyramidizerExporter;
 import ij.IJ;
 import loci.common.DebugTools;
+import loci.formats.CoreMetadata;
+import loci.formats.IFormatReader;
+import loci.formats.IFormatWriter;
+import loci.formats.MetadataTools;
+import loci.formats.meta.IMetadata;
+import loci.formats.tools.ImageConverter;
+import ome.xml.meta.MetadataConverter;
+import ome.xml.meta.MetadataRetrieve;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
@@ -34,6 +42,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.task.TaskService;
 
 import java.io.File;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -42,6 +51,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
+
+import static ch.epfl.biop.kheops.KheopsHelper.copyFromMetaSeries;
 
 /**
  * Creates a pyramidal OME TIFF from a single file
@@ -64,7 +75,7 @@ public class KheopsCommand implements Command {
     @Parameter( label = "Selected Timepoints. Leave blank for all", required = false )
     String range_frames = "";
 
-    @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false, persist=false)
+    @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false)
     File output_dir;
 
     @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
@@ -175,44 +186,40 @@ public class KheopsCommand implements Command {
                 }
 
                 try {
-
-                    /*OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter.builder()
-                            .compression(compression)
-                            .compressTemporaryFiles(compress_temp_files)
-                            .maxTilesInQueue(numberOfBlocksComputedInAdvance)
-                            .nThreads(parallelProcess ? 0 : nThreads)
-                            .downsample(2)
-                            .nResolutionLevels(nResolutions)
-                            .micrometer()
-                            .rangeT(range_frames)
-                            .rangeC(range_channels)
-                            .rangeZ(range_slices)
-                            .channelNames(sourcesInfo.idToChannels)
-                            .savePath(output_path.getAbsolutePath())
-                            .monitor(taskService)
-                            .tileSize(tileSize, tileSize);*/
-                    OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder builder = OMETiffExporterBuilder.defineData()
+                    OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporterBuilder.defineData()
                             .put(sources)
                             .defineMetaData("Image")
-                            .defineWriteOptions()
-                            .maxTilesInQueue(numberOfBlocksComputedInAdvance)
-                            .compression(compression)
-                            .compressTemporaryFiles(compress_temp_files)
-                            .nThreads(parallelProcess ? 0 : nThreads)
-                            .downsample(2)
-                            .nResolutionLevels(nResolutions)
-                            .rangeT(range_frames)
-                            .rangeC(range_channels)
-                            .rangeZ(range_slices)
-                            .monitor(taskService)
-                            .savePath(output_path.getAbsolutePath())
-                            .tileSize(tileSize, tileSize);
-
-                    /*if (override_voxel_size) {
-                        builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
-                    }*/
-
-                    builder.create().export();
+                            .applyOnMeta(meta -> {
+                                IFormatReader reader = null;
+                                try {
+                                    try {
+                                        reader = sourcesInfo.readerPool.acquire();
+                                        IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
+                                        copyFromMetaSeries(medataSrc,iSeries,meta,0);
+                                    } finally {
+                                        sourcesInfo.readerPool.recycle(reader);
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+                                return meta;
+                            });
+                    if (override_voxel_size) {
+                        builder.voxelPhysicalSizeMicrometer(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
+                    }
+                    builder.defineWriteOptions()
+                        .maxTilesInQueue(numberOfBlocksComputedInAdvance)
+                        .compression(compression)
+                        .compressTemporaryFiles(compress_temp_files)
+                        .nThreads(parallelProcess ? 0 : nThreads)
+                        .downsample(2)
+                        .nResolutionLevels(nResolutions)
+                        .rangeT(range_frames)
+                        .rangeC(range_channels)
+                        .rangeZ(range_slices)
+                        .monitor(taskService)
+                        .savePath(output_path.getAbsolutePath())
+                        .tileSize(tileSize, tileSize).create().export();
 
                 } catch (Exception e) {
                     IJ.log("Error with " + output_path + " export.");
@@ -222,6 +229,13 @@ public class KheopsCommand implements Command {
 
         });
 
+        sourcesInfo.readerPool.shutDown(reader -> {
+            try {
+                reader.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
         // CODE HERE
         Instant finish = Instant.now();
         long timeElapsed = Duration.between(start, finish).toMillis();

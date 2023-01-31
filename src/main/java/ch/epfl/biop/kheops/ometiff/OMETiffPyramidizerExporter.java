@@ -357,7 +357,7 @@ public class OMETiffPyramidizerExporter<T extends NumericType<T>> {
 			MetadataConverter.convertChannels(metaSrc,seriesSrc,0,metaDst,seriesDst,0,false);
 		} else for (int c = 0; c < sizeC; c++) {
 			int srcC = range.getRangeC().get(c);
-			System.out.println("srcC = "+srcC+" dstC = "+c);
+			//System.out.println("srcC = "+srcC+" dstC = "+c);
 			MetadataConverter.convertChannels(metaSrc,seriesSrc,srcC,metaDst,seriesDst,c,false);
 		}
 	}

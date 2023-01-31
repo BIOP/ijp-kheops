@@ -27,8 +27,11 @@ import bdv.img.n5.N5ImageLoader;
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsBdvOpener;
 import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsToSpimData;
+import ch.epfl.biop.bdv.img.legacy.bioformats.ReaderPool;
 import ch.epfl.biop.bdv.img.legacy.bioformats.entity.SeriesNumber;
+import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
 import ij.IJ;
+import loci.formats.IFormatReader;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.generic.sequence.BasicImgLoader;
 import mpicbg.spim.data.generic.sequence.BasicViewSetup;
@@ -37,6 +40,10 @@ import net.imglib2.cache.LoaderCache;
 import net.imglib2.cache.ref.BoundedSoftRefLoaderCache;
 import ome.units.UNITS;
 import ome.units.quantity.Length;
+import ome.units.quantity.Time;
+import ome.xml.meta.MetadataConverter;
+import ome.xml.meta.MetadataRetrieve;
+import ome.xml.meta.MetadataStore;
 import org.apache.commons.lang.time.DurationFormatUtils;
 import org.scijava.log.Logger;
 import spimdata.util.Displaysettings;
@@ -61,6 +68,9 @@ public class KheopsHelper {
                         .cacheBlockSize(tileX, tileY, 1);
                         //.queueOptions(nParallelJobs, 4)
                         //.cacheBounded(maxCacheSize*nParallelJobs);
+
+        //IFormatReader modelReader = opener.getReaderPool().acquire();
+        ReaderPool readerPool = opener.getReaderPool();
 
         AbstractSpimData<?> asd = BioFormatsToSpimData
                 .getSpimData(
@@ -110,7 +120,7 @@ public class KheopsHelper {
         info.idToSeriesNumber = idToSeriesNumber;
         info.idToChannels = idToChannels;
         info.seriesToId = seriesToId;
-
+        info.readerPool = readerPool;
         return info;
     }
 
@@ -119,6 +129,8 @@ public class KheopsHelper {
         public Map<Integer, SeriesNumber> idToSeriesNumber;
         public Map<Integer, String> idToChannels;
         public Map<Integer, Integer> seriesToId;
+
+        public ReaderPool readerPool;
     }
 
     private static boolean boundSpimDataCache(AbstractSpimData<?> asd, int nBlocks, int nThreads, int nPriorities) {
@@ -163,5 +175,44 @@ public class KheopsHelper {
         String fullMessage = message+":  "+DurationFormatUtils.formatDuration(elapsed, "H:mm:ss", true);
         logger.info(fullMessage);
         IJ.log(fullMessage);
+    }
+
+    public static void copyFromMetaSeries(MetadataRetrieve metaSrc, int seriesSrc, MetadataStore metaDst, int seriesDst) {
+
+        // Global
+        metaDst.setCreator(metaSrc.getCreator());
+        // Per series
+        metaDst.setImageAcquisitionDate(metaSrc.getImageAcquisitionDate(seriesSrc), seriesDst);
+        metaDst.setImageName(metaSrc.getImageName(seriesSrc), seriesDst);
+        metaDst.setImageDescription(metaSrc.getImageDescription(seriesSrc), seriesDst);
+        //metaDst.setImageExperimenterGroupRef(metaSrc.getImageExperimenterGroupRef(seriesSrc), seriesDst);
+        //metaDst.setImageExperimentRef(metaSrc.getImageExperimentRef(seriesSrc), seriesDst);
+        //metaDst.setImageInstrumentRef(metaSrc.getImageInstrumentRef(seriesSrc), seriesDst);
+        metaDst.setPixelsPhysicalSizeX(metaSrc.getPixelsPhysicalSizeX(seriesSrc), seriesDst);
+        metaDst.setPixelsPhysicalSizeY(metaSrc.getPixelsPhysicalSizeY(seriesSrc), seriesDst);
+        metaDst.setPixelsPhysicalSizeZ(metaSrc.getPixelsPhysicalSizeZ(seriesSrc), seriesDst);
+        metaDst.setPixelsTimeIncrement(metaSrc.getPixelsTimeIncrement(seriesSrc), seriesDst);
+        //metaDst.setStageLabelName(metaSrc.getStageLabelName(seriesSrc), seriesDst);
+        //metaDst.setStageLabelX(metaSrc.getStageLabelX(seriesSrc), seriesDst);
+        //metaDst.setStageLabelY(metaSrc.getStageLabelY(seriesSrc), seriesDst);
+        //metaDst.setStageLabelZ(metaSrc.getStageLabelZ(seriesSrc), seriesDst);
+
+        // Per plane
+        int planeCount = metaSrc.getPlaneCount(seriesSrc);
+        for (int i = 0; i<planeCount; i++) {
+            Time t = metaSrc.getPlaneExposureTime(seriesSrc, i);
+            if (t!=null) {
+                metaDst.setPlaneExposureTime(metaSrc.getPlaneExposureTime(seriesSrc, i), seriesDst, i);
+                metaDst.setPlaneDeltaT(metaSrc.getPlaneDeltaT(seriesSrc, i), seriesDst,i);
+                metaDst.setPlanePositionX(metaSrc.getPlanePositionX(seriesSrc,i),seriesDst,i);
+                metaDst.setPlanePositionY(metaSrc.getPlanePositionY(seriesSrc,i),seriesDst,i);
+                metaDst.setPlanePositionZ(metaSrc.getPlanePositionZ(seriesSrc,i),seriesDst,i);
+            }
+        }
+
+        int sizeC = metaSrc.getChannelCount(seriesSrc); // ? 1: metaSrc.getPixelsSizeC(seriesSrc).getValue();
+        for (int ch = 0; ch<sizeC;ch++) {
+            MetadataConverter.convertChannels(metaSrc, seriesSrc, ch, metaDst, seriesDst, ch, false);
+        }
     }
 }
