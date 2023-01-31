@@ -24,8 +24,10 @@ package ch.epfl.biop.kheops.ometiff;
 
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
+import ch.epfl.biop.bdv.img.ResourcePool;
 import ch.epfl.biop.kheops.CZTRange;
 import loci.common.image.IImageScaler;
+import loci.formats.IFormatReader;
 import loci.formats.MetadataTools;
 import loci.formats.in.OMETiffReader;
 import loci.formats.meta.IMetadata;
@@ -94,6 +96,10 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	final Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI;
 	final IMetadata oriMetadata;
 	final int oriMetaDataSeries;
+
+	final ResourcePool<IFormatReader> readerPool;
+	final int readerPoolSeries;
+
 	// ------------ Saving options
 	final CZTRange range; // To save a subset of C Z or T
 	final long tileX, tileY;
@@ -132,12 +138,15 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	final ThreadLocal<Integer> localResolution = new ThreadLocal<>(); // Current resolution level of the thread
 	volatile int currentLevelWritten = -1;
 
+	final Function<TileIterator.IntsKey, byte[]> lvl0DataFetcher;
+
 	protected OMETiffExporter(
 			// Image data and metadata, + czt optional subsetting
 			Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI, // Image data
 			IMetadata originalOmeMeta, int originalSeries,
 			// Writing options
-			OMETiffExporterBuilder.WriterOptions writerSettings) throws Exception {
+			OMETiffExporterBuilder.WriterOptions writerSettings,
+			ResourcePool<IFormatReader> readerPool, int readerPoolSeries) throws Exception {
 		// Monitoring
 		if (writerSettings.taskService != null) {
 			this.writerTask = writerSettings.taskService.createTask("Writing: " + new File(writerSettings.path).getName());
@@ -190,7 +199,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		sizeC = range.getRangeC().size();
 		sizeZ = range.getRangeZ().size();
 		sizeT = range.getRangeT().size();
-		System.out.println("#C"+sizeC+"#Z"+sizeZ+"#T"+sizeT);
+		//System.out.println("#C"+sizeC+"#Z"+sizeZ+"#T"+sizeT);
 
 		mapResToWidth.put(0, width);
 		mapResToHeight.put(0, height);
@@ -244,9 +253,174 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		tileIterator = new TileIterator(nResolutionLevels, sizeT, sizeC, sizeZ,
 			resToNY, resToNX, writerSettings.maxTilesInQueue);
 		computedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1); // should be enough to avoiding overlap of hash
+
+		if (readerPool == null) {
+			this.readerPool = null;
+			this.readerPoolSeries = -1;
+			lvl0DataFetcher = this::getBytesFromRAIs;
+		} else {
+			this.readerPool = readerPool;
+			this.readerPoolSeries = readerPoolSeries;
+			lvl0DataFetcher = (key) -> this.getBytesFromReaderPool(key);
+		}
+	}
+
+	private byte[] getBytesFromRAIs(TileIterator.IntsKey key) {
+		int r = key.array[0];
+		int t = key.array[1];
+		int c = key.array[2];
+		int z = key.array[3];
+		int y = key.array[4];
+		int x = key.array[5];
+
+		long startX = x * tileX;
+		long startY = y * tileY;
+
+		long endX = (x + 1) * (tileX);
+		long endY = (y + 1) * (tileY);
+
+		int	maxX = width; // Before it's the resolution level 0
+		int	maxY = height;
+
+		if (endX > maxX) endX = maxX;
+		if (endY > maxY) endY = maxY;
+
+
+		RandomAccessibleInterval<T> rai =
+				ctToRAI.get(range.getRangeC()
+						.get(c)).get(range.getRangeT().get(t));
+		RandomAccessibleInterval<T> slice = Views.hyperSlice(rai, 2,
+				range.getRangeZ().get(z));
+		return SourceToByteArray.raiToByteArray(Views.interval(slice,
+				new FinalInterval(new long[] { startX, startY }, new long[] { endX - 1,
+						endY - 1 })), pixelInstance);
+	}
+
+	private byte[] getBytesFromReaderPool(TileIterator.IntsKey key) {
+		int r = key.array[0];
+		int t = key.array[1];
+		int c = key.array[2];
+		int z = key.array[3];
+		int y = key.array[4];
+		int x = key.array[5];
+
+		assert r == 0;
+
+		long startX = x * tileX;
+		long startY = y * tileY;
+
+		long endX = (x + 1) * (tileX);
+		long endY = (y + 1) * (tileY);
+
+		//int	maxX = width; // Before it's the resolution level 0
+		//int	maxY = height;
+
+		if (endX > width) endX = width;
+		if (endY > height) endY = height;
+
+		try {
+			IFormatReader reader = null;
+			try {
+				reader = readerPool.acquire();
+				//System.out.println("oriMetaDataSeries = "+this.readerPoolSeries);
+				reader.setSeries(this.readerPoolSeries);
+				reader.setResolution(0);
+				//System.out.println("W = "+width);
+				//System.out.println("H = "+height);
+				//System.out.println("Tx = "+(endX-startX));
+				//System.out.println("Ty = "+(endY-startY));
+				//System.out.println("endX = "+endX);
+				//System.out.println("endY = "+endY);
+				//System.out.println("endY = "+endY);
+				//System.out.println("StartX = "+(startX));
+				//System.out.println("StartY = "+(startY));
+
+				return reader.openBytes(
+						reader.getIndex(range.getRangeZ().get(z),
+								range.getRangeC().get(c),
+								range.getRangeT().get(t)),
+						(int) (startX), (int) (startY),
+						(int) (endX-startX), (int) (endY-startY)
+				);
+			} finally {
+				readerPool.recycle(reader);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return null;
+
+		/*RandomAccessibleInterval<T> rai =
+				ctToRAI.get(range.getRangeC()
+						.get(c)).get(range.getRangeT().get(t));
+		RandomAccessibleInterval<T> slice = Views.hyperSlice(rai, 2,
+				range.getRangeZ().get(z));
+		return SourceToByteArray.raiToByteArray(Views.interval(slice,
+				new FinalInterval(new long[] { startX, startY }, new long[] { endX - 1,
+						endY - 1 })), pixelInstance);*/
 	}
 
 	private void computeTile(TileIterator.IntsKey key) throws Exception {
+		/*int r = key.array[0];
+		localResolution.set(r);
+		if (r == 0) {
+			computedBlocks.put(key, lvl0DataFetcher.apply(key));
+		} else {
+			int t = key.array[1];
+			int c = key.array[2];
+			int z = key.array[3];
+			int y = key.array[4];
+			int x = key.array[5];
+
+			long startX = x * tileX;
+			long startY = y * tileY;
+
+			// Wait for the previous resolution level to be written !
+			while (r != currentLevelWritten) {
+				synchronized (tileLock) {
+					tileLock.wait();
+				}
+			}
+
+			if ((localResolution.get() == null) || (localResolution.get() != r)) {
+				// Need to update the reader : we are now writing the next resolution
+				// level
+				if (localReader.get() != null) {
+					// Closing the previous local reader
+					localReader.get().close();
+				}
+				else {
+					localScaler.set(new AverageImageScaler());
+				}
+				OMETiffReader reader = new OMETiffReader();
+				IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
+				reader.setMetadataStore(omeMeta);
+				reader.setId(getFileName(r - 1));
+				reader.setSeries(0);
+				localReader.set(reader);
+				localResolution.set(r);
+			}
+
+			int plane = t * sizeZ * sizeC + c * sizeZ + z;
+			long effTileSizeX = tileX * downsample;
+			if (((startX * downsample) + effTileSizeX) >= mapResToWidth.get(r - 1)) {
+				effTileSizeX = mapResToWidth.get(r - 1) - (startX * downsample);
+			}
+			long effTileSizeY = tileY * downsample;
+			if (((startY * downsample) + effTileSizeY) >= mapResToHeight.get(r - 1)) {
+				effTileSizeY = mapResToHeight.get(r - 1) - (startY * downsample);
+			}
+			byte[] tileBytePreviousLevel = localReader.get().openBytes(plane,
+				(int) (startX * downsample), (int) (startY * downsample),
+				(int) (effTileSizeX), (int) (effTileSizeY));
+
+			byte[] tileByte = localScaler.get().downsample(tileBytePreviousLevel,
+				(int) effTileSizeX, (int) effTileSizeY, downsample, bytesPerPixel,
+				isLittleEndian, isFloat, isRGB ? 3 : 1, false);
+
+			computedBlocks.put(key, tileByte);
+		}*/
 		int r = key.array[0];
 		int t = key.array[1];
 		int c = key.array[2];
@@ -276,15 +450,16 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 		if (r == 0) {
 			localResolution.set(r);
-			RandomAccessibleInterval<T> rai =
-					ctToRAI.get(range.getRangeC()
-							.get(c)).get(range.getRangeT().get(t));
+			/*RandomAccessibleInterval<T> rai =ctToRAI.get(range.getRangeC().get(c)).get(range.getRangeT().get(t));
+					//sources[range.getRangeC()
+					//.get(c)].getSource(range.getRangeT().get(t), r);
 			RandomAccessibleInterval<T> slice = Views.hyperSlice(rai, 2,
-				range.getRangeZ().get(z));
+					range.getRangeZ().get(z));
 			byte[] tileByte = SourceToByteArray.raiToByteArray(Views.interval(slice,
-				new FinalInterval(new long[] { startX, startY }, new long[] { endX - 1,
-					endY - 1 })), pixelInstance);
-			computedBlocks.put(key, tileByte);
+					new FinalInterval(new long[] { startX, startY }, new long[] { endX - 1,
+							endY - 1 })), pixelInstance);
+			computedBlocks.put(key, tileByte);*/
+			computedBlocks.put(key, this.lvl0DataFetcher.apply(key));
 		}
 		else {
 			// Wait for the previous resolution level to be written !
@@ -326,16 +501,15 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			}
 
 			byte[] tileBytePreviousLevel = localReader.get().openBytes(plane,
-				(int) (startX * downsample), (int) (startY * downsample),
-				(int) (effTileSizeX), (int) (effTileSizeY));
+					(int) (startX * downsample), (int) (startY * downsample),
+					(int) (effTileSizeX), (int) (effTileSizeY));
 
 			byte[] tileByte = localScaler.get().downsample(tileBytePreviousLevel,
-				(int) effTileSizeX, (int) effTileSizeY, downsample, bytesPerPixel,
-				isLittleEndian, isFloat, isRGB ? 3 : 1, false);
+					(int) effTileSizeX, (int) effTileSizeY, downsample, bytesPerPixel,
+					isLittleEndian, isFloat, isRGB ? 3 : 1, false);
 
 			computedBlocks.put(key, tileByte);
 		}
-
 	}
 
 	private boolean computeNextTile() throws Exception {
@@ -591,6 +765,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			protected final int pixelsSizeX, pixelsSizeY, pixelsSizeZ, pixelsSizeC, pixelsSizeT;
 			protected final Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI;
 
+			protected final ResourcePool<IFormatReader> readerPool;
+			protected final int readerPoolSeries;
+
 			protected final T pixelInstance;
 
 			private Data(DataBuilder<T> builder) {
@@ -601,6 +778,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				this.pixelsSizeT = builder.nTimePoints;
 				this.ctToRAI = builder.ctToRAI;
 				this.pixelInstance = builder.pixelInstance;
+				this.readerPoolSeries = builder.readerPoolSeries;
+				this.readerPool = builder.readerPool;
 			}
 			public static class DataBuilder<T> {
 				private int nPixelX = -1, nPixelY = -1, nPixelZ = -1;
@@ -608,6 +787,16 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				private Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI = new HashMap<>();
 				RandomAccessibleInterval<T> model;
 				T pixelInstance;
+
+				ResourcePool<IFormatReader> readerPool;
+				int readerPoolSeries;
+
+
+				public DataBuilder<T> setReaderPool(ResourcePool<IFormatReader> readerPool, int series) {
+					this.readerPool = readerPool;
+					this.readerPoolSeries = series;
+					return this;
+				}
 
 				public DataBuilder<T> put(int channel, Source<T> source) throws UnsupportedOperationException {
 					int t = 0;
@@ -1020,14 +1209,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					}
 
 					WriterOptions wOpts = new WriterOptions(this);
-					return new OMETiffExporter(data.ctToRAI, metaData.omeMeta, 0,wOpts);
+					return new OMETiffExporter(data.ctToRAI, metaData.omeMeta, metaData.series, wOpts, data.readerPool, data.readerPoolSeries);
 				}
-
 			}
 		}
-
-
 	}
-
-
 }

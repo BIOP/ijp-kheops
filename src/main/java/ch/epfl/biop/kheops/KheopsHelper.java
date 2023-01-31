@@ -25,13 +25,12 @@ import bdv.img.cache.VolatileGlobalCellCache;
 import bdv.img.hdf5.Hdf5ImageLoader;
 import bdv.img.n5.N5ImageLoader;
 import bdv.viewer.SourceAndConverter;
+import ch.epfl.biop.bdv.img.ResourcePool;
 import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsBdvOpener;
 import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsToSpimData;
 import ch.epfl.biop.bdv.img.legacy.bioformats.ReaderPool;
 import ch.epfl.biop.bdv.img.legacy.bioformats.entity.SeriesNumber;
-import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
 import ij.IJ;
-import loci.formats.IFormatReader;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.generic.sequence.BasicImgLoader;
 import mpicbg.spim.data.generic.sequence.BasicViewSetup;
@@ -65,12 +64,15 @@ public class KheopsHelper {
         BioFormatsBdvOpener opener =
                 BioFormatsToSpimData.getDefaultOpener(path)
                         .micrometer()
+
+
                         .cacheBlockSize(tileX, tileY, 1);
                         //.queueOptions(nParallelJobs, 4)
                         //.cacheBounded(maxCacheSize*nParallelJobs);
 
         //IFormatReader modelReader = opener.getReaderPool().acquire();
         ReaderPool readerPool = opener.getReaderPool();
+
 
         AbstractSpimData<?> asd = BioFormatsToSpimData
                 .getSpimData(

@@ -181,12 +181,16 @@ public class KheopsCommand implements Command {
                 try {
                     OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
                             .put(sources)
+                            .setReaderPool(sourcesInfo.readerPool, iSeries)
                             .defineMetaData("Image")
                             .applyOnMeta(meta -> {
                                 IFormatReader reader = null;
                                 try {
                                     try {
                                         reader = sourcesInfo.readerPool.acquire();
+                                        /*reader.setSeries(iSeries);
+                                        System.out.println("reader.getOptimalTileWidth()= "+reader.getOptimalTileWidth());
+                                        System.out.println("reader.getOptimalTileHeight()= "+reader.getOptimalTileHeight());*/
                                         IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
                                         copyFromMetaSeries(medataSrc, iSeries, meta, 0);
                                     } finally {
@@ -203,7 +207,7 @@ public class KheopsCommand implements Command {
                     builder.defineWriteOptions()
                         .maxTilesInQueue(numberOfBlocksComputedInAdvance)
                         .compression(compression)
-                        .compressTemporaryFiles(compress_temp_files)
+                        .compressTemporaryFiles(compress_temp_files).nThreads(0)
                         .nThreads(parallelProcess ? 0 : nThreads)
                         .downsample(2)
                         .nResolutionLevels(nResolutions)
