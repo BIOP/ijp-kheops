@@ -23,18 +23,11 @@ package ch.epfl.biop.kheops.command;
 
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.kheops.KheopsHelper;
-import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
-import ch.epfl.biop.kheops.ometiff.OMETiffPyramidizerExporter;
+import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
 import ij.IJ;
 import loci.common.DebugTools;
-import loci.formats.CoreMetadata;
 import loci.formats.IFormatReader;
-import loci.formats.IFormatWriter;
-import loci.formats.MetadataTools;
 import loci.formats.meta.IMetadata;
-import loci.formats.tools.ImageConverter;
-import ome.xml.meta.MetadataConverter;
-import ome.xml.meta.MetadataRetrieve;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
@@ -186,7 +179,7 @@ public class KheopsCommand implements Command {
                 }
 
                 try {
-                    OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporterBuilder.defineData()
+                    OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
                             .put(sources)
                             .defineMetaData("Image")
                             .applyOnMeta(meta -> {
@@ -195,7 +188,7 @@ public class KheopsCommand implements Command {
                                     try {
                                         reader = sourcesInfo.readerPool.acquire();
                                         IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
-                                        copyFromMetaSeries(medataSrc,iSeries,meta,0);
+                                        copyFromMetaSeries(medataSrc, iSeries, meta, 0);
                                     } finally {
                                         sourcesInfo.readerPool.recycle(reader);
                                     }

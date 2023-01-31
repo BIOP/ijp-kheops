@@ -23,7 +23,7 @@ package ch.epfl.biop.kheops.command;
 
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.kheops.KheopsHelper;
-import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
+import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
 import ij.IJ;
 import loci.common.DebugTools;
 import org.apache.commons.io.FilenameUtils;
@@ -178,7 +178,7 @@ public class KheopsBatchCommand implements Command {
 
                             try {
 
-                                OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder builder = OMETiffExporterBuilder.defineData()
+                                OMETiffExporter.OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder builder = OMETiffExporter.builder().defineData()
                                         .put(sources)
                                         .defineMetaData("Image")
                                         .defineWriteOptions()

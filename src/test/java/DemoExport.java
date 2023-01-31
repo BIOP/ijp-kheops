@@ -2,7 +2,7 @@ import bdv.BigDataViewer;
 import bdv.util.RandomAccessibleIntervalSource;
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
-import ch.epfl.biop.kheops.ometiff.OMETiffExporterBuilder;
+import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
 import loci.common.DebugTools;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
@@ -48,36 +48,8 @@ public class DemoExport {
                 //String path = "C:\\Users\\nicol\\Desktop\\ometiff\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
                 String path = "C:\\kheops\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
                 System.out.println("Saving "+path);
-                /*OMETiffPyramidizerExporter.builder()
-                        .tileSize(tileSize, tileSize) //Math.min(1024,(int)img.dimension(0)), Math.min(256,(int)img.dimension(1)))
-                        //.lzw()
-                        //.downsample(2)
-                        .nResolutionLevels(1)
-                        //.monitor(taskService) // Monitor
-                        .maxTilesInQueue(60) // Number of blocks computed in advanced, default 10
-                        //.savePath("/Users/preibischs/Downloads/test2a.tiff")
-                        .savePath(path)
-                        .nThreads(7)
-                        .micrometer()
-                        .create(createSourceAndConverter(img))
-                        .export();*/
-
-                /*OMETiffExporterBuilder.builder()
-                        .channelName(0,"Channel_0")
-                        .put3DRAI(img)
-
-                        .writeSettings(
-                                WriterSettings.builder()
-                                        .savePath(path)
-                                        .build())
-                        .get().export();
-
-                OMETiffExportBuilder
-                        .defineData().put3DRAI(img)
-                        .defineMetaData()
-                        .defineWriteOptions()
-                        .create().export();*/
-                OMETiffExporterBuilder.defineData()
+                OMETiffExporter.builder()
+                        .defineData()
                         .put3DRAI(img)
                         .put3DRAI(0,1,img)
                         .defineMetaData("Image")
