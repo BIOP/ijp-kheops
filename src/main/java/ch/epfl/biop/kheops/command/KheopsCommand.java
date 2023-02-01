@@ -220,7 +220,7 @@ public class KheopsCommand implements Command {
                     builder.defineWriteOptions()
                         .maxTilesInQueue(numberOfBlocksComputedInAdvance)
                         .compression(compression)
-                        .compressTemporaryFiles(compress_temp_files).nThreads(0)
+                        .compressTemporaryFiles(compress_temp_files)
                         .nThreads(parallelProcess ? 0 : nThreads)
                         .downsample(2)
                         .nResolutionLevels(nResolutions)
