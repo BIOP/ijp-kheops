@@ -29,6 +29,7 @@ import loci.common.DebugTools;
 import loci.formats.IFormatReader;
 import loci.formats.meta.IMetadata;
 import org.apache.commons.io.FilenameUtils;
+import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
@@ -53,9 +54,6 @@ import static ch.epfl.biop.kheops.KheopsHelper.copyFromMetaSeries;
 
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME")
 public class KheopsCommand implements Command {
-
-
-
     @Parameter(label = "Select an input file (required)", style="open")
     File input_path;
 
@@ -92,6 +90,9 @@ public class KheopsCommand implements Command {
     @Parameter
     TaskService taskService;
 
+    @Parameter
+    Context context;
+
     @Override
     public void run() {
 
@@ -115,8 +116,9 @@ public class KheopsCommand implements Command {
         int numberOfBlocksComputedInAdvance = 64;
 
         KheopsHelper.SourcesInfo sourcesInfo =
-                KheopsHelper.getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, numberOfBlocksComputedInAdvance,
-                        nThreads);
+                KheopsHelper
+                        .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, numberOfBlocksComputedInAdvance,
+                        nThreads,false, "CORNER", context);
 
         int nSeries = sourcesInfo.idToSources.keySet().size();
 
@@ -130,8 +132,8 @@ public class KheopsCommand implements Command {
         IntStream.range(0,nSeries).forEach(iSeries -> {
             String fileNameWithOutExt = FilenameUtils.removeExtension(fileName);
             if (nSeries>1) {
-                if (sourcesInfo.idToSeriesNumber.containsKey(iSeries)) {
-                    fileNameWithOutExt += "_" + sourcesInfo.idToSeriesNumber.get(sourcesInfo.seriesToId.get(iSeries)).getName();
+                if (sourcesInfo.idToSeriesIndex.containsKey(iSeries)) {
+                    fileNameWithOutExt += "_" + sourcesInfo.idToImageName.get(sourcesInfo.seriesToId.get(iSeries)).getName();
                 } else {
                     fileNameWithOutExt += "_" + iSeries;
                 }
@@ -155,6 +157,8 @@ public class KheopsCommand implements Command {
         });
 
         IntStream idStream =  IntStream.range(0,nSeries);
+
+        process_series_in_parallel = true;
 
         if (process_series_in_parallel) idStream.parallel();
 
@@ -181,16 +185,13 @@ public class KheopsCommand implements Command {
                 try {
                     OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
                             .put(sources)
-                            .setReaderPool(sourcesInfo.readerPool, iSeries)
+                            //.setReaderPool(sourcesInfo.readerPool, iSeries)
                             .defineMetaData("Image")
                             .applyOnMeta(meta -> {
                                 IFormatReader reader = null;
                                 try {
                                     try {
                                         reader = sourcesInfo.readerPool.acquire();
-                                        /*reader.setSeries(iSeries);
-                                        System.out.println("reader.getOptimalTileWidth()= "+reader.getOptimalTileWidth());
-                                        System.out.println("reader.getOptimalTileHeight()= "+reader.getOptimalTileHeight());*/
                                         IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
                                         copyFromMetaSeries(medataSrc, iSeries, meta, 0);
                                     } finally {

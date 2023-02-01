@@ -95,6 +95,9 @@ public class KheopsBatchCommand implements Command {
     @Override
     public void run() {
 
+        throw new UnsupportedOperationException("TODO");
+
+        /*
         //--------------------
         int tileSize = 512;
 
@@ -134,8 +137,8 @@ public class KheopsBatchCommand implements Command {
                         SourceAndConverter[] sources = sourcesInfo.idToSources.get(iSeries).toArray(new SourceAndConverter[0]);
 
                         if (nSeries>1) {
-                            if (sourcesInfo.idToSeriesNumber.containsKey(iSeries)) {
-                                fileNameWithOutExt += "_" + sourcesInfo.idToSeriesNumber.get(sourcesInfo.seriesToId.get(iSeries)).getName();
+                            if (sourcesInfo.idToSeriesIndex.containsKey(iSeries)) {
+                                fileNameWithOutExt += "_" + sourcesInfo.idToImageName.get(sourcesInfo.seriesToId.get(iSeries)).getName();
                             } else {
                                 fileNameWithOutExt += "_" + iSeries;
                             }
@@ -194,9 +197,9 @@ public class KheopsBatchCommand implements Command {
                                         .savePath(output_path.getAbsolutePath())
                                         .tileSize(tileSize, tileSize);
 
-                                /*if (override_voxel_size) {
+                                if (override_voxel_size) {
                                     builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
-                                }*/
+                                }
 
                                 builder.create().export();
                                 IJ.log("Processing "+input_path+": done.");
@@ -222,7 +225,7 @@ public class KheopsBatchCommand implements Command {
         logger.accept("\t Batch OME TIFF conversion (Kheops) \t Run time=\t"+(timeElapsed/1000)+"\t s ");
         KheopsHelper.writeElapsedTime(start,
                 logService.subLogger(this.getClass().getSimpleName()),
-                "Batch export time:");
+                "Batch export time:");*/
     }
 
 }

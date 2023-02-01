@@ -26,6 +26,7 @@ import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.bdv.img.ResourcePool;
 import ch.epfl.biop.kheops.CZTRange;
+import ch.epfl.biop.kheops.KheopsHelper;
 import loci.common.image.IImageScaler;
 import loci.formats.IFormatReader;
 import loci.formats.MetadataTools;
@@ -165,8 +166,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		pixelInstance = model.getAt(0,0,0);
 
 		isRGB = pixelInstance instanceof ARGBType;
-		isInterleaved = isRGB;
-		isLittleEndian = true;
+		isInterleaved = oriMetadata.getPixelsInterleaved(oriMetaDataSeries);
+		isLittleEndian = false;
 
 		if (pixelInstance instanceof UnsignedShortType) {
 			bytesPerPixel = 2;
@@ -538,13 +539,12 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		}
 	}
 
-	private void populateOmeMeta(IMetadata metaDst, int seriesDst, IMetadata metaSrc, int seriesSrc) {
+	private void copyChannelsMeta(IMetadata metaDst, int seriesDst, IMetadata metaSrc, int seriesSrc) {
 		if (isRGB) {
-			MetadataConverter.convertChannels(metaSrc,seriesSrc,0,metaDst,seriesDst,0,false);
+			MetadataConverter.convertChannels(metaSrc,seriesSrc,0,metaDst,seriesDst,0,true);
 		} else for (int c = 0; c < sizeC; c++) {
 			int srcC = range.getRangeC().get(c);
-			//System.out.println("srcC = "+srcC+" dstC = "+c);
-			MetadataConverter.convertChannels(metaSrc,seriesSrc,srcC,metaDst,seriesDst,c,false);
+			MetadataConverter.convertChannels(metaSrc,seriesSrc,srcC,metaDst,seriesDst,c,true);
 		}
 	}
 
@@ -557,11 +557,35 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
 		IMetadata currentLevelOmeMeta = MetadataTools.createOMEXMLMetadata();
 
-		MetadataConverter.convertMetadata(oriMetadata, omeMeta);
-		MetadataConverter.convertMetadata(oriMetadata, currentLevelOmeMeta);
+		/*
+		public static void populateMetadata(MetadataStore store, int series,
+    String imageName, boolean littleEndian, String dimensionOrder,
+    String pixelType, int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
+    int samplesPerPixel)
+		 */
+		MetadataTools.populateMetadata(omeMeta, dstSeries,
+				oriMetadata.getImageName(oriMetaDataSeries), isLittleEndian,oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries).getValue(),
+				oriMetadata.getPixelsType(oriMetaDataSeries).toString(), width,height,
+				range.getRangeZ().size(),isRGB ? 3:range.getRangeC().size(), range.getRangeT().size(),oriMetadata.getChannelSamplesPerPixel(oriMetaDataSeries,0).getValue());
+		omeMeta.setPixelsInterleaved(oriMetadata.getPixelsInterleaved(oriMetaDataSeries), dstSeries);
+
+		MetadataTools.verifyMinimumPopulated(omeMeta, dstSeries);
+
+		MetadataTools.populateMetadata(currentLevelOmeMeta, dstSeries,
+				oriMetadata.getImageName(oriMetaDataSeries), isLittleEndian,oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries).getValue(),
+				oriMetadata.getPixelsType(oriMetaDataSeries).toString(), width,height,
+				range.getRangeZ().size(),isRGB? 3:range.getRangeC().size(), range.getRangeT().size(),oriMetadata.getChannelSamplesPerPixel(oriMetaDataSeries,0).getValue());
+		omeMeta.setPixelsInterleaved(oriMetadata.getPixelsInterleaved(oriMetaDataSeries), dstSeries);
+
+		MetadataTools.verifyMinimumPopulated(currentLevelOmeMeta, dstSeries);
+
+		//MetadataConverter.convertMetadata(oriMetadata, omeMeta);
+		KheopsHelper.copyFromMetaSeries(oriMetadata,this.oriMetaDataSeries,omeMeta,this.dstSeries);
+		MetadataConverter.convertMetadata(omeMeta, currentLevelOmeMeta);
+
 		// IMetadata metaDst, int seriesDst, IMetadata metaSrc, int seriesSrc
-		populateOmeMeta(omeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries );
-		populateOmeMeta(currentLevelOmeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries);
+		copyChannelsMeta(omeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries );
+		copyChannelsMeta(currentLevelOmeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries);
 
 		for (int r = 0; r < nResolutionLevels - 1; r++) {
 			((IPyramidStore) omeMeta).setResolutionSizeX(new PositiveInteger(
@@ -573,8 +597,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		// setup writer for multiresolution file
 		PyramidOMETiffWriter writer = new PyramidOMETiffWriter();
 		writer.setMetadataRetrieve(omeMeta);
-		writer.setWriteSequentially(true); // Setting this to false can be
-																				// problematic!
+		writer.setWriteSequentially(true); // Setting this to false can be problematic!
 		writer.setBigTiff(true);
 		writer.setId(file.getAbsolutePath());
 		writer.setSeries(dstSeries);
@@ -638,8 +661,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					currentLevelWriter.setInterleaved(true);
 				}
 				else {
-					currentLevelWriter.setInterleaved(false); // !!!! weird. See
-																										// TestOMETIFFRGBMultiScaleTile
+					currentLevelWriter.setInterleaved(false); // !!!! weird. See TestOMETIFFRGBMultiScaleTile
 				}
 			}
 
@@ -681,6 +703,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 								int plane = t * sizeZ * sizeC + c * sizeZ + z;
 
+								//System.out.println("computedBlocks.get(key).length = "+computedBlocks.get(key).length);
 								if (r < nResolutionLevels - 1) {
 									currentLevelWriter.saveBytes(plane, computedBlocks.get(key),
 										(int) startX, (int) startY, (int) (endX - startX),

@@ -25,28 +25,31 @@ import bdv.img.cache.VolatileGlobalCellCache;
 import bdv.img.hdf5.Hdf5ImageLoader;
 import bdv.img.n5.N5ImageLoader;
 import bdv.viewer.SourceAndConverter;
+import ch.epfl.biop.bdv.img.OpenersImageLoader;
+import ch.epfl.biop.bdv.img.OpenersToSpimData;
 import ch.epfl.biop.bdv.img.ResourcePool;
-import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsBdvOpener;
-import ch.epfl.biop.bdv.img.legacy.bioformats.BioFormatsToSpimData;
-import ch.epfl.biop.bdv.img.legacy.bioformats.ReaderPool;
-import ch.epfl.biop.bdv.img.legacy.bioformats.entity.SeriesNumber;
+import ch.epfl.biop.bdv.img.bioformats.BioFormatsHelper;
+import ch.epfl.biop.bdv.img.bioformats.entity.SeriesIndex;
+import ch.epfl.biop.bdv.img.entity.ImageName;
+import ch.epfl.biop.bdv.img.opener.OpenerSettings;
 import ij.IJ;
+import loci.formats.IFormatReader;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.generic.sequence.BasicImgLoader;
 import mpicbg.spim.data.generic.sequence.BasicViewSetup;
 import mpicbg.spim.data.sequence.Channel;
 import net.imglib2.cache.LoaderCache;
 import net.imglib2.cache.ref.BoundedSoftRefLoaderCache;
-import ome.units.UNITS;
-import ome.units.quantity.Length;
 import ome.units.quantity.Time;
 import ome.xml.meta.MetadataConverter;
 import ome.xml.meta.MetadataRetrieve;
 import ome.xml.meta.MetadataStore;
 import org.apache.commons.lang.time.DurationFormatUtils;
+import org.scijava.Context;
 import org.scijava.log.Logger;
 import spimdata.util.Displaysettings;
 
+import java.io.File;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.time.Instant;
@@ -60,42 +63,59 @@ public class KheopsHelper {
     public static SourcesInfo getSourcesFromFile(String path,int tileX,
                                                             int tileY,
                                                             int maxCacheSize,
-                                                            int nParallelJobs) {
-        BioFormatsBdvOpener opener =
-                BioFormatsToSpimData.getDefaultOpener(path)
-                        .micrometer()
+                                                            int nParallelJobs,
+                                                            boolean splitRGB,
+                                                            String position_convention,
+                                                            Context context) {
 
+       /* OpenerSettings settings = new OpenerSettings()
+                .bioFormatsBuilder()
+                .location(path)
+                .cacheBlockSize(tileX, tileY, 1)
+                .readerPoolSize(nParallelJobs);*/
 
-                        .cacheBlockSize(tileX, tileY, 1);
-                        //.queueOptions(nParallelJobs, 4)
-                        //.cacheBounded(maxCacheSize*nParallelJobs);
+        List<OpenerSettings> openerSettings = new ArrayList<>();
+        File f = new File(path);
+        int nSeries = BioFormatsHelper.getNSeries(f);
+        for (int i = 0; i < nSeries; i++) {
+            openerSettings.add(
+                    OpenerSettings.BioFormats()
+                            .location(f)
+                            .setSerie(i)
+                            .micrometer()
+                            .cacheBlockSize(tileX,tileY, 1)
+                            .readerPoolSize(nParallelJobs)
+                            //.unit(unit)
+                            .splitRGBChannels(splitRGB)
+                            //.positionConvention(position_convention)
+                            .cornerPositionConvention()
+                            .context(context)
+            );
+        }
 
-        //IFormatReader modelReader = opener.getReaderPool().acquire();
-        ReaderPool readerPool = opener.getReaderPool();
+        //spimdata = OpenersToSpimData.getSpimData(openerSettings);
 
+        AbstractSpimData<?> asd = OpenersToSpimData.getSpimData(openerSettings);
 
-        AbstractSpimData<?> asd = BioFormatsToSpimData
-                .getSpimData(
-                    opener.voxSizeReferenceFrameLength(new Length(1, UNITS.MILLIMETER))
-                          .positionReferenceFrameLength(new Length(1,UNITS.METER)));
-
-        boundSpimDataCache(asd, maxCacheSize*nParallelJobs, nParallelJobs, 4);
+        boundSpimDataCache(asd, maxCacheSize*nParallelJobs, nParallelJobs, nParallelJobs);
 
         Map<Integer, SourceAndConverter> idToSource = new SourceAndConverterFromSpimDataCreator(asd).getSetupIdToSourceAndConverter();
 
-        Map<Integer, SeriesNumber> idToSeriesNumber = new HashMap<>();
-        Map<Integer, String> idToChannels = new HashMap<>();
-        Map<Integer, Integer> seriesToId = new HashMap<>();
+        SourcesInfo info = new SourcesInfo();
+        OpenersImageLoader loader = ((OpenersImageLoader)(asd.getSequenceDescription().getImgLoader()));
+        info.readerPool = (ResourcePool<IFormatReader>) loader.openers.get(0).getPixelReader();
 
         idToSource.keySet().stream()
                 .forEach(id -> {
                     BasicViewSetup bvs = asd.getSequenceDescription().getViewSetups().get(id);
-                    SeriesNumber sn = bvs.getAttribute(SeriesNumber.class);
+                    SeriesIndex si = bvs.getAttribute(SeriesIndex.class);
                     Channel channel = bvs.getAttribute(Channel.class);
-                    if (sn!=null) {
-                        idToSeriesNumber.put(id, sn);
-                        idToChannels.put(id, channel.getName());
-                        seriesToId.put(sn.getId(), id);
+                    ImageName imageName = bvs.getAttribute(ImageName.class);
+                    if (si!=null) {
+                        info.idToSeriesIndex.put(id, si);
+                        info.idToChannels.put(id, channel.getName());
+                        info.idToImageName.put(id, imageName);
+                        info.seriesToId.put(si.getId(), id);
                     }
                     Displaysettings displaysettings = bvs.getAttribute(Displaysettings.class);
                     if (displaysettings!=null) {
@@ -105,34 +125,27 @@ public class KheopsHelper {
 
         int nSources = idToSource.size();
 
-        Map<Integer, List<SourceAndConverter>> idToSacs = new HashMap<>();
+        //Map<Integer, List<SourceAndConverter>> idToSacs = new HashMap<>();
 
         for (int id = 0; id<nSources; id++) {
             SourceAndConverter source = idToSource.get(id);
-            int sn_id = idToSeriesNumber.get(id).getId();
-            if (!idToSacs.containsKey(sn_id)) {
-                idToSacs.put(sn_id, new ArrayList<>());
+            int sn_id = info.idToSeriesIndex.get(id).getId();
+            if (!info.idToSources.containsKey(sn_id)) {
+                info.idToSources.put(sn_id, new ArrayList<>());
             }
-            idToSacs.get(sn_id).add(source);
+            info.idToSources.get(sn_id).add(source);
         }
 
-        SourcesInfo info = new SourcesInfo();
-
-        info.idToSources = idToSacs;
-        info.idToSeriesNumber = idToSeriesNumber;
-        info.idToChannels = idToChannels;
-        info.seriesToId = seriesToId;
-        info.readerPool = readerPool;
         return info;
     }
 
     public static class SourcesInfo {
-        public Map<Integer, List<SourceAndConverter>> idToSources;
-        public Map<Integer, SeriesNumber> idToSeriesNumber;
-        public Map<Integer, String> idToChannels;
-        public Map<Integer, Integer> seriesToId;
-
-        public ReaderPool readerPool;
+        public Map<Integer, List<SourceAndConverter>> idToSources = new HashMap<>();
+        public Map<Integer, ImageName> idToImageName = new HashMap<>();
+        public Map<Integer, SeriesIndex> idToSeriesIndex = new HashMap<>();
+        public Map<Integer, String> idToChannels = new HashMap<>();
+        public Map<Integer, Integer> seriesToId = new HashMap<>();
+        public ResourcePool<IFormatReader> readerPool;
     }
 
     private static boolean boundSpimDataCache(AbstractSpimData<?> asd, int nBlocks, int nThreads, int nPriorities) {
@@ -198,6 +211,7 @@ public class KheopsHelper {
         //metaDst.setStageLabelX(metaSrc.getStageLabelX(seriesSrc), seriesDst);
         //metaDst.setStageLabelY(metaSrc.getStageLabelY(seriesSrc), seriesDst);
         //metaDst.setStageLabelZ(metaSrc.getStageLabelZ(seriesSrc), seriesDst);
+
 
         // Per plane
         int planeCount = metaSrc.getPlaneCount(seriesSrc);
