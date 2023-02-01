@@ -23,6 +23,9 @@
 package ch.epfl.biop.kheops.command;
 
 import bdv.viewer.SourceAndConverter;
+import ch.epfl.biop.kheops.KheopsHelper;
+import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
+import org.apache.commons.io.FilenameUtils;
 import org.scijava.command.Command;
 import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
@@ -64,10 +67,10 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
     boolean override_voxel_size;
 
     @Parameter(label = "Voxel size in micrometer (XY)", style = "format:#.000")
-    double vox_size_xy;
+    double vox_size_xy_um;
 
     @Parameter(label = "Voxel Z size in micrometer (Z)", style = "format:#.000")
-    double vox_size_z;
+    double vox_size_z_um;
 
     @Parameter(label = "Number of resolution levels")
     int n_resolution_levels = 4;
@@ -84,11 +87,14 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
     @Parameter(label = "Number of threads (0 = serial)")
     int n_threads = 8;
 
-    @Parameter(label = "Number of tiles computed in advance")
-    int max_tiles_queue = 256;
+    //@Parameter(label = "Number of tiles computed in advance")
 
-    @Parameter(label = "Use LZW compression")
-    Boolean lzw_compression = false;
+
+    @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
+    String compression = "LZW";
+
+    @Parameter(label="Compress temporary files (save space on drive during pyramid building)")
+    boolean compress_temp_files = false;
 
     @Parameter
     TaskService taskService;
@@ -104,30 +110,43 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
 
         sacs = sources.toArray(new SourceAndConverter[0]);
 
-        /*OMETiffPyramidizerExporter.Builder builder = OMETiffPyramidizerExporter
-                .builder().monitor(taskService).downsample(downscaling).rangeC(
-                        range_channels).rangeT(range_frames).rangeZ(range_slices)
-                .nResolutionLevels(n_resolution_levels).savePath(file.getAbsolutePath());
+        int max_tiles_queue = 256;
 
-        if (lzw_compression) builder.lzw();
-        if (unit.equals("MILLIMETER")) builder.millimeter();
-        if (unit.equals("MICROMETER")) builder.micrometer();
-        if (override_voxel_size) builder.micrometer().setPixelSize(vox_size_xy,
-                vox_size_xy, vox_size_z);
-        if ((tile_size_x > 0) && (tile_size_y > 0)) builder.tileSize(tile_size_x,
-                tile_size_y);
-        builder.maxTilesInQueue(max_tiles_queue);
-        builder.nThreads(n_threads);
+        String imageName = FilenameUtils.removeExtension(file.getName());
+        if (imageName.endsWith(".ome")) {
+            imageName = FilenameUtils.removeExtension(imageName);
+        }
 
         try {
-            builder.create(sacs).export();
+            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
+                    .put(sacs)
+                    .defineMetaData(FilenameUtils.removeExtension(imageName))
+                    .putMetadataFromSources(sacs, unit);
+
+            if (override_voxel_size) {
+                builder.voxelPhysicalSizeMicrometer(this.vox_size_xy_um, this.vox_size_xy_um, this.vox_size_z_um);
+            }
+            builder.defineWriteOptions()
+                    .maxTilesInQueue(max_tiles_queue)
+                    .compression(compression)
+                    .compressTemporaryFiles(compress_temp_files)
+                    .nThreads(n_threads)
+                    .downsample(downscaling)
+                    .nResolutionLevels(n_resolution_levels)
+                    .rangeT(range_frames)
+                    .rangeC(range_channels)
+                    .rangeZ(range_slices)
+                    .monitor(taskService)
+                    .savePath(file.getAbsolutePath())
+                    .tileSize(tile_size_x, tile_size_y).create().export();
+
             KheopsHelper.writeElapsedTime(start,
                     logger.subLogger(this.getClass().getSimpleName()),
                     file.getName()+" export time:");
         }
         catch (Exception e) {
             e.printStackTrace();
-        }*/
+        }
     }
 
 }

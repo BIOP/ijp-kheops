@@ -558,12 +558,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
 		IMetadata currentLevelOmeMeta = MetadataTools.createOMEXMLMetadata();
 
-		/*
-		public static void populateMetadata(MetadataStore store, int series,
-    String imageName, boolean littleEndian, String dimensionOrder,
-    String pixelType, int sizeX, int sizeY, int sizeZ, int sizeC, int sizeT,
-    int samplesPerPixel)
-		 */
 		MetadataTools.populateMetadata(omeMeta, dstSeries,
 				oriMetadata.getImageName(oriMetaDataSeries), isLittleEndian,oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries).getValue(),
 				oriMetadata.getPixelsType(oriMetaDataSeries).toString(), width,height,
@@ -674,6 +668,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				reader.setResolution(0);
 				reader.setSeries(this.readerPoolSeries);
 				writer.setInterleaved(reader.isInterleaved());
+				omeMeta.setPixelsBigEndian(!reader.isLittleEndian(),dstSeries);
 				readerPool.recycle(reader);
 			}
 			logger.debug("Saving resolution size " + r);
@@ -1086,6 +1081,11 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					return new WriterOptions.WriterOptionsBuilder(new MetaData(this), data);
 				}
 
+				public MetaDataBuilder putMetadataFromSources(SourceAndConverter[] sacs, String unit) {
+					//TODO
+					throw new UnsupportedOperationException("putMetadataFromSources has to be implemented");
+					//return this;
+				}
 			}
 		}
 		public static class WriterOptions {

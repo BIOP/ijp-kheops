@@ -196,7 +196,7 @@ public class KheopsBatchCommand implements Command {
                             try {
                                 OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
                                         .put(sources)
-                                        .setReaderPool(sourcesInfo.readerPool, iSeries)
+                                        //.setReaderPool(sourcesInfo.readerPool, iSeries)
                                         .defineMetaData("Image")
                                         .applyOnMeta(meta -> {
                                             IFormatReader reader = null;
