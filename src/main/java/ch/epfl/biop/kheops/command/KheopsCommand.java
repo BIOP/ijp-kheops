@@ -46,16 +46,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static ch.epfl.biop.kheops.KheopsHelper.copyFromMetaSeries;
 
-/**
- * Creates a pyramidal OME TIFF from a single file
- */
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME")
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME",
+        description = "Converts a Bio-Formats readable file to pyramidal OME TIFFs files (one file per series).")
 public class KheopsCommand implements Command {
     @Parameter(label = "Select an input file (required)", style="open")
     File input_path;
@@ -89,7 +86,6 @@ public class KheopsCommand implements Command {
     @Parameter(label="Voxel Z size in micrometer (Z)", style="format:#.000")
     double vox_size_z;
 
-    //Set<String> paths = new HashSet<>();
     public static Consumer<String> logger = (str) -> IJ.log(str);
 
     @Parameter

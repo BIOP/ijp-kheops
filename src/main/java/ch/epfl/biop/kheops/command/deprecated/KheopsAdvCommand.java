@@ -26,7 +26,6 @@ import loci.common.DebugTools;
 import loci.formats.FormatException;
 import loci.formats.ImageWriter;
 import loci.formats.tools.ImageConverter;
-import net.imagej.ImageJ;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.scijava.command.Command;
@@ -43,11 +42,8 @@ import java.util.function.Consumer;
 import static org.scijava.ItemVisibility.MESSAGE;
 
 /**
- * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
- * The pom file of this project is customized for the PTBIOP Organization (biop.epfl.ch)
- * <p>
- * The code here is opening the biop website. The command can be tested in the java DummyCommandTest class.
- * </p>
+ * SciJava facade of the Bio-Formats {@link ImageConverter}, with more advanced parameters than
+ * {@link KheopsSimpleCommand}
  */
 
 @Deprecated
@@ -151,21 +147,5 @@ public class KheopsAdvCommand implements Command {
         logger.accept(input_path.getName()+"\t OME TIFF conversion (Deprecated Kheops Adv. Command) \t Run time=\t"+(timeElapsed/1000)+"\t s");
 
     }
-
-    /**
-     * This main function serves for development purposes.
-     * It allows you to run the plugin immediately out of
-     * your integrated development environment (IDE).
-     *
-     * @param args whatever, it's ignored
-     * @throws Exception thrown during runtime
-     */
-    public static void main(final String... args) throws Exception {
-        // create the ImageJ application context with all available services
-        final ImageJ ij = new ImageJ();
-        ij.ui().showUI();
-        ij.command().run(KheopsAdvCommand.class, true);
-    }
-
 
 }

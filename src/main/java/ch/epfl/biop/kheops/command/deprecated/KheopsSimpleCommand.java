@@ -42,11 +42,7 @@ import java.time.Instant;
 import java.util.function.Consumer;
 
 /**
- * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
- * The pom file of this project is customized for the PTBIOP Organization (biop.epfl.ch)
- * <p>
- * The code here is opening the biop website. The command can be tested in the java DummyCommandTest class.
- * </p>
+ * Simple SciJava facade of the Bio-Formats {@link ImageConverter}
  */
 
 @Deprecated

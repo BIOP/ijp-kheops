@@ -38,6 +38,7 @@ import org.scijava.plugin.Plugin;
 import org.scijava.task.TaskService;
 
 import java.io.File;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -46,22 +47,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
 
 import static ch.epfl.biop.kheops.KheopsHelper.copyFromMetaSeries;
 
-/**
- * Creates a pyramidal OME TIFF in batch
- */
-
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Batch Convert File to Pyramidal OME")
+@Plugin(type = Command.class,
+        menuPath = "Plugins>BIOP>Kheops>Kheops - Batch Convert Files to Pyramidal OME TIFF",
+        description = "Converts in parallel Bio-Formats readable files to pyramidal OME TIFFs files.")
 public class KheopsBatchCommand implements Command {
 
     @Parameter(label = "Select input files (required)", style="open")
     File[] input_paths;
-
-    //@Parameter
-    //int number_of_threads;
 
     @Parameter( label = "Selected Series. Leave blank for all", required = false )
     String range_series = "";
@@ -108,7 +103,6 @@ public class KheopsBatchCommand implements Command {
     @Override
     public void run() {
 
-
         //--------------------
         int tileSize = 512;
         int nThreads = Math.max(1,Runtime.getRuntime().availableProcessors()-1);
@@ -118,7 +112,7 @@ public class KheopsBatchCommand implements Command {
         DebugTools.enableLogging("OFF");
 
         if (input_paths.length<(Runtime.getRuntime().availableProcessors()+1)/2) {
-            IJ.log("You selected a few files only, the batch mode may be slower than the normal mode with the batch button");
+            IJ.log("You selected a few files only, the batch kheops command may be slower than the normal kheops with the batch button");
         }
 
         if ((output_dir == null) || (output_dir.toString().equals(""))) {
@@ -136,9 +130,6 @@ public class KheopsBatchCommand implements Command {
                     IJ.log("Processing "+input_path);
                     String fileName = input_path.getName();
 
-                    //KheopsHelper.SourcesInfo sourcesInfo =
-                    //        KheopsHelper.getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, 1,1);
-
                     KheopsHelper.SourcesInfo sourcesInfo =
                             KheopsHelper
                                     .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, 1,
@@ -153,9 +144,6 @@ public class KheopsBatchCommand implements Command {
                         e.printStackTrace();
                         throw new RuntimeException(e);
                     }
-
-
-                    //IntStream idStream =  IntStream.range(0,series.size());
 
                     series.forEach(iSeries -> {
 
@@ -229,7 +217,6 @@ public class KheopsBatchCommand implements Command {
                                     builder.voxelPhysicalSizeMicrometer(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
                                 }
                                 builder.defineWriteOptions()
-                                        //.maxTilesInQueue(numberOfBlocksComputedInAdvance)
                                         .compression(compression)
                                         .compressTemporaryFiles(compress_temp_files)
                                         .nThreads(0)
@@ -241,30 +228,6 @@ public class KheopsBatchCommand implements Command {
                                         .monitor(taskService)
                                         .savePath(output_path.getAbsolutePath())
                                         .tileSize(tileSize, tileSize).create().export();
-
-
-                                /*OMETiffExporter.OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder builder = OMETiffExporter.builder().defineData()
-                                        .put(sources)
-                                        .defineMetaData("Image")
-                                        .defineWriteOptions()
-                                        .compression(compression)
-                                        .compressTemporaryFiles(compress_temp_files)
-                                        .nThreads(0)
-                                        .downsample(2)
-                                        .nResolutionLevels(nResolutions)
-                                        .rangeT(range_frames)
-                                        .rangeC(range_channels)
-                                        .rangeZ(range_slices)
-                                        .monitor(taskService)
-                                        .savePath(output_path.getAbsolutePath())
-                                        .tileSize(tileSize, tileSize);
-
-                                if (override_voxel_size) {
-                                    builder.setPixelSize(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
-                                }
-
-                                builder.create().export();
-                                IJ.log("Processing "+input_path+": done.");*/
                             } catch (Exception e) {
                                 IJ.log("Error with "+fileNameWithOutExt+" export.");
                                 e.printStackTrace();
@@ -272,14 +235,21 @@ public class KheopsBatchCommand implements Command {
                         }
 
                     });
+                    sourcesInfo.readerPool.shutDown(reader -> {
+                        try {
+                            reader.close();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    });
                 });
+
             return 0;}).get();
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         customThreadPool.shutdown();
-
 
         // CODE HERE
         Instant finish = Instant.now();
