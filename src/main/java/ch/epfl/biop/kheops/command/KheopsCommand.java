@@ -22,6 +22,7 @@
 package ch.epfl.biop.kheops.command;
 
 import bdv.viewer.SourceAndConverter;
+import ch.epfl.biop.kheops.IntRangeParser;
 import ch.epfl.biop.kheops.KheopsHelper;
 import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
 import ij.IJ;
@@ -41,10 +42,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static ch.epfl.biop.kheops.KheopsHelper.copyFromMetaSeries;
 
@@ -57,6 +60,8 @@ public class KheopsCommand implements Command {
     @Parameter(label = "Select an input file (required)", style="open")
     File input_path;
 
+    @Parameter( label = "Selected Series. Leave blank for all", required = false )
+    String range_series = "";
     @Parameter( label = "Selected Channels. Leave blank for all", required = false )
     String range_channels = "";
 
@@ -120,18 +125,27 @@ public class KheopsCommand implements Command {
                         .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, numberOfBlocksComputedInAdvance,
                         nThreads,false, "CORNER", context);
 
-        int nSeries = sourcesInfo.idToSources.keySet().size();
+        int nSeriesOriginal = sourcesInfo.idToSources.keySet().size();
+
+        List<Integer> series;
+        try {
+            series = new IntRangeParser(range_series).get(nSeriesOriginal);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
 
         boolean process_series_in_parallel = true;
 
-        if (nSeries==1) process_series_in_parallel = false;
+        if (series.size()==1) process_series_in_parallel = false;
 
         Map<Integer, String> indexToFilePath = new HashMap<>();
         Set<String> paths = new HashSet<>();
 
-        IntStream.range(0,nSeries).forEach(iSeries -> {
+
+        series.forEach(iSeries -> {
             String fileNameWithOutExt = FilenameUtils.removeExtension(fileName);
-            if (nSeries>1) {
+            if (series.size()>1) {
                 if (sourcesInfo.idToSeriesIndex.containsKey(iSeries)) {
                     fileNameWithOutExt += "_" + sourcesInfo.idToImageName.get(sourcesInfo.seriesToId.get(iSeries)).getName();
                 } else {
@@ -156,9 +170,7 @@ public class KheopsCommand implements Command {
             indexToFilePath.put(iSeries, fileNameWithOutExt+".ome.tiff");
         });
 
-        IntStream idStream =  IntStream.range(0,nSeries);
-
-        process_series_in_parallel = true;
+        Stream<Integer> idStream =  series.stream();
 
         if (process_series_in_parallel) idStream.parallel();
 
@@ -185,7 +197,7 @@ public class KheopsCommand implements Command {
                 try {
                     OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
                             .put(sources)
-                            //.setReaderPool(sourcesInfo.readerPool, iSeries)
+                            .setReaderPool(sourcesInfo.readerPool, iSeries)
                             .defineMetaData("Image")
                             .applyOnMeta(meta -> {
                                 IFormatReader reader = null;

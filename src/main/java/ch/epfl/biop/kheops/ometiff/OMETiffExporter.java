@@ -29,6 +29,7 @@ import ch.epfl.biop.kheops.CZTRange;
 import ch.epfl.biop.kheops.KheopsHelper;
 import loci.common.image.IImageScaler;
 import loci.formats.IFormatReader;
+import loci.formats.ImageReader;
 import loci.formats.MetadataTools;
 import loci.formats.in.OMETiffReader;
 import loci.formats.meta.IMetadata;
@@ -587,6 +588,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		copyChannelsMeta(omeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries );
 		copyChannelsMeta(currentLevelOmeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries);
 
+		// Interleave fix
+
 		for (int r = 0; r < nResolutionLevels - 1; r++) {
 			((IPyramidStore) omeMeta).setResolutionSizeX(new PositiveInteger(
 				mapResToWidth.get(r + 1)), dstSeries, r + 1);
@@ -666,15 +669,32 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			}
 
 			if (r > 0) writer.setInterleaved(false); // But why the heck ???
-
+			if ((r == 0) && (readerPool!=null) && isRGB) {
+				IFormatReader reader = readerPool.acquire();
+				reader.setResolution(0);
+				reader.setSeries(this.readerPoolSeries);
+				writer.setInterleaved(reader.isInterleaved());
+				readerPool.recycle(reader);
+			}
 			logger.debug("Saving resolution size " + r);
 			writer.setResolution(r);
 
 			currentLevelWritten = r;
-			synchronized (tileLock) { // Notifies that a new resolution level is being
-																// written
+			synchronized (tileLock) { // Notifies that a new resolution level is being written
 				tileLock.notifyAll();
 			}
+
+			/*IFormatReader reader = readerPool.acquire();
+			reader.setResolution(0);
+			reader.setSeries(this.readerPoolSeries);
+
+			System.out.println("res level\t "+r+
+					"\tome_ori_i\t"+oriMetadata.getPixelsInterleaved(oriMetaDataSeries)+
+					"\twriter_i\t"+writer.isInterleaved()+
+					"\twriter_c_level_i"+(currentLevelWriter==null? "None":currentLevelWriter.isInterleaved())+
+					"\treader\t"+reader.isInterleaved());
+
+			readerPool.recycle(reader);*/
 
 			for (int t = 0; t < sizeT; t++) {
 				for (int c = 0; c < sizeC; c++) {
