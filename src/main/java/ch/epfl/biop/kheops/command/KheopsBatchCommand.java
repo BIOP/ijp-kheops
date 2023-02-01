@@ -75,7 +75,7 @@ public class KheopsBatchCommand implements Command {
     @Parameter( label = "Selected Timepoints. Leave blank for all", required = false )
     String range_frames = "";
 
-    @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false, persist=false)
+    @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false)
     File output_dir;
 
     @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
