@@ -29,7 +29,6 @@ import ch.epfl.biop.kheops.CZTRange;
 import ch.epfl.biop.kheops.KheopsHelper;
 import loci.common.image.IImageScaler;
 import loci.formats.IFormatReader;
-import loci.formats.ImageReader;
 import loci.formats.MetadataTools;
 import loci.formats.in.OMETiffReader;
 import loci.formats.meta.IMetadata;
@@ -53,6 +52,7 @@ import ome.xml.meta.MetadataConverter;
 import ome.xml.model.enums.DimensionOrder;
 import ome.xml.model.enums.PixelType;
 import ome.xml.model.primitives.Color;
+import ome.xml.model.primitives.NonNegativeInteger;
 import ome.xml.model.primitives.PositiveInteger;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.task.Task;
@@ -575,7 +575,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		MetadataTools.verifyMinimumPopulated(currentLevelOmeMeta, dstSeries);
 
 		//MetadataConverter.convertMetadata(oriMetadata, omeMeta);
-		KheopsHelper.copyFromMetaSeries(oriMetadata,this.oriMetaDataSeries,omeMeta,this.dstSeries);
+		KheopsHelper.transferSeriesMeta(oriMetadata,this.oriMetaDataSeries,omeMeta,this.dstSeries);
 		MetadataConverter.convertMetadata(omeMeta, currentLevelOmeMeta);
 
 		// IMetadata metaDst, int seriesDst, IMetadata metaSrc, int seriesSrc
@@ -679,21 +679,21 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				tileLock.notifyAll();
 			}
 
-			/*IFormatReader reader = readerPool.acquire();
-			reader.setResolution(0);
-			reader.setSeries(this.readerPoolSeries);
-
-			System.out.println("res level\t "+r+
-					"\tome_ori_i\t"+oriMetadata.getPixelsInterleaved(oriMetaDataSeries)+
-					"\twriter_i\t"+writer.isInterleaved()+
-					"\twriter_c_level_i"+(currentLevelWriter==null? "None":currentLevelWriter.isInterleaved())+
-					"\treader\t"+reader.isInterleaved());
-
-			readerPool.recycle(reader);*/
-
 			for (int t = 0; t < sizeT; t++) {
 				for (int c = 0; c < sizeC; c++) {
 					for (int z = 0; z < sizeZ; z++) {
+						int plane = t * sizeZ * sizeC + c * sizeZ + z;
+						if (r == 0) {
+							//omeMeta.setPlaneDeltaT();
+							int oriC = range.getRangeC().get(c);
+							int oriZ = range.getRangeZ().get(z);
+							int oriT = range.getRangeT().get(t);
+							int oriPlane = getOriginalPlaneIndex(oriC, oriZ, oriT);
+							omeMeta.setPlaneTheC(new NonNegativeInteger(c), dstSeries, plane);
+							omeMeta.setPlaneTheZ(new NonNegativeInteger(z), dstSeries, plane);
+							omeMeta.setPlaneTheT(new NonNegativeInteger(t), dstSeries, plane);
+							KheopsHelper.transferPlaneMeta(oriMetadata,oriMetaDataSeries,oriPlane,omeMeta,dstSeries,plane);
+						}
 						for (int y = 0; y < nYTiles; y++) {
 							for (int x = 0; x < nXTiles; x++) {
 								long startX = x * tileX;
@@ -716,7 +716,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 									}
 								}
 
-								int plane = t * sizeZ * sizeC + c * sizeZ + z;
+								//int plane = t * sizeZ * sizeC + c * sizeZ + z;
 
 								//System.out.println("computedBlocks.get(key).length = "+computedBlocks.get(key).length);
 								if (r < nResolutionLevels - 1) {
@@ -775,6 +775,24 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		if (writerTask != null) writerTask.run(() -> {});
 	}
 
+	private int getOriginalPlaneIndex(int oriC, int oriZ, int oriT) {
+		return oriT * sizeZ * sizeC + oriC * sizeZ + oriZ;
+		/*if (oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries))
+		return oriT * sizeZ * sizeC + oriC * sizeZ + oriZ;*/
+		// t * sizeZ * sizeC + c * sizeZ + z
+		//XYZCT default
+		/*switch (oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries)) {
+			case XYZCT: return oriT * sizeC * sizeZ + oriC * sizeZ + oriZ;
+			case XYZTC: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
+			case XYCTZ: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
+			case XYCZT: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
+			case XYTCZ: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
+			case XYTZC: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
+			default: throw new IllegalArgumentException("Unknow dimension order "+oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries));
+		}*/
+
+	}
+
 	private String getFileName(int r) {
 		return FilenameUtils.removeExtension(file.getAbsolutePath()) + "_lvl_" + r +
 			".ome.tiff";
@@ -823,12 +841,10 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				private int nPixelX = -1, nPixelY = -1, nPixelZ = -1;
 				private int nChannels = -1, nTimePoints = -1;
 				private Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI = new HashMap<>();
-				RandomAccessibleInterval<T> model;
 				T pixelInstance;
 
 				ResourcePool<IFormatReader> readerPool;
 				int readerPoolSeries;
-
 
 				public DataBuilder<T> setReaderPool(ResourcePool<IFormatReader> readerPool, int series) {
 					this.readerPool = readerPool;

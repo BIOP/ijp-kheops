@@ -48,7 +48,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
-import static ch.epfl.biop.kheops.KheopsHelper.copyFromMetaSeries;
+import static ch.epfl.biop.kheops.KheopsHelper.transferSeriesMeta;
 
 
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME",
@@ -201,7 +201,7 @@ public class KheopsCommand implements Command {
                                     try {
                                         reader = sourcesInfo.readerPool.acquire();
                                         IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
-                                        copyFromMetaSeries(medataSrc, iSeries, meta, 0);
+                                        transferSeriesMeta(medataSrc, iSeries, meta, 0);
                                     } finally {
                                         sourcesInfo.readerPool.recycle(reader);
                                     }

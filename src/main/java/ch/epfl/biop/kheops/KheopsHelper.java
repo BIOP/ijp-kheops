@@ -40,6 +40,7 @@ import mpicbg.spim.data.generic.sequence.BasicViewSetup;
 import mpicbg.spim.data.sequence.Channel;
 import net.imglib2.cache.LoaderCache;
 import net.imglib2.cache.ref.BoundedSoftRefLoaderCache;
+import ome.units.quantity.Length;
 import ome.units.quantity.Time;
 import ome.xml.meta.MetadataConverter;
 import ome.xml.meta.MetadataRetrieve;
@@ -192,7 +193,7 @@ public class KheopsHelper {
         IJ.log(fullMessage);
     }
 
-    public static void copyFromMetaSeries(MetadataRetrieve metaSrc, int seriesSrc, MetadataStore metaDst, int seriesDst) {
+    public static void transferSeriesMeta(MetadataRetrieve metaSrc, int seriesSrc, MetadataStore metaDst, int seriesDst) {
 
         // Global
         metaDst.setCreator(metaSrc.getCreator());
@@ -207,30 +208,50 @@ public class KheopsHelper {
         metaDst.setPixelsPhysicalSizeY(metaSrc.getPixelsPhysicalSizeY(seriesSrc), seriesDst);
         metaDst.setPixelsPhysicalSizeZ(metaSrc.getPixelsPhysicalSizeZ(seriesSrc), seriesDst);
         metaDst.setPixelsTimeIncrement(metaSrc.getPixelsTimeIncrement(seriesSrc), seriesDst);
+        metaDst.setPixelsDimensionOrder(metaSrc.getPixelsDimensionOrder(seriesSrc), seriesDst);
         //metaDst.setStageLabelName(metaSrc.getStageLabelName(seriesSrc), seriesDst);
         //metaDst.setStageLabelX(metaSrc.getStageLabelX(seriesSrc), seriesDst);
         //metaDst.setStageLabelY(metaSrc.getStageLabelY(seriesSrc), seriesDst);
         //metaDst.setStageLabelZ(metaSrc.getStageLabelZ(seriesSrc), seriesDst);
 
+        /*String instrumentRef = metaSrc.getImageInstrumentRef(seriesSrc);
+
+        if (instrumentRef!=null) {
+            for (int idx_instrument = 0; idx_instrument<metaSrc.getInstrumentCount(); idx_instrument++) {
+                String id = metaSrc.getInstrumentID(idx_instrument);
+                System.out.println(id+" vs "+instrumentRef);
+                if (id.equals(instrumentRef)) {
+
+                }
+            }
+        }*/
+
 
         // Per plane
         int planeCount = metaSrc.getPlaneCount(seriesSrc);
         for (int i = 0; i<planeCount; i++) {
-            Time t = metaSrc.getPlaneExposureTime(seriesSrc, i);
-            if (t!=null) {
-                metaDst.setPlaneExposureTime(metaSrc.getPlaneExposureTime(seriesSrc, i), seriesDst, i);
-                metaDst.setPlaneDeltaT(metaSrc.getPlaneDeltaT(seriesSrc, i), seriesDst,i);
-                metaDst.setPlanePositionX(metaSrc.getPlanePositionX(seriesSrc,i),seriesDst,i);
-                metaDst.setPlanePositionY(metaSrc.getPlanePositionY(seriesSrc,i),seriesDst,i);
-                metaDst.setPlanePositionZ(metaSrc.getPlanePositionZ(seriesSrc,i),seriesDst,i);
-            }
+            transferPlaneMeta(metaSrc,seriesSrc,i,metaDst,seriesDst,i);
         }
 
         int sizeC = metaSrc.getChannelCount(seriesSrc); // ? 1: metaSrc.getPixelsSizeC(seriesSrc).getValue();
         for (int ch = 0; ch<sizeC;ch++) {
-            MetadataConverter.convertChannels(metaSrc, seriesSrc, ch, metaDst, seriesDst, ch, false);
+            MetadataConverter.convertChannels(metaSrc, seriesSrc, ch, metaDst, seriesDst, ch, true);
         }
     }
+
+    public static void transferPlaneMeta(MetadataRetrieve metaSrc, int seriesSrc, int planeSrc, MetadataStore metaDst, int seriesDst, int planeDst) {
+        Time t = metaSrc.getPlaneExposureTime(seriesSrc, planeSrc);
+        if (t!=null) metaDst.setPlaneExposureTime(t, seriesDst, planeDst);
+        Time dt = metaSrc.getPlaneDeltaT(seriesSrc, planeSrc);
+        if (dt!=null) metaDst.setPlaneDeltaT(dt, seriesDst,planeDst);
+        Length px = metaSrc.getPlanePositionX(seriesSrc, planeSrc);
+        if (px!=null) metaDst.setPlanePositionX(px, seriesDst, planeDst);
+        Length py = metaSrc.getPlanePositionY(seriesSrc, planeSrc);
+        if (py!=null) metaDst.setPlanePositionY(py, seriesDst, planeDst);
+        Length pz = metaSrc.getPlanePositionZ(seriesSrc, planeSrc);
+        if (pz!=null) metaDst.setPlanePositionZ(pz, seriesDst,planeDst);
+    }
+
 
 
 }

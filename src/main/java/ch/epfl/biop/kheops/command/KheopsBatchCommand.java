@@ -48,7 +48,7 @@ import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
-import static ch.epfl.biop.kheops.KheopsHelper.copyFromMetaSeries;
+import static ch.epfl.biop.kheops.KheopsHelper.transferSeriesMeta;
 
 @Plugin(type = Command.class,
         menuPath = "Plugins>BIOP>Kheops>Kheops - Batch Convert Files to Pyramidal OME TIFF",
@@ -204,7 +204,7 @@ public class KheopsBatchCommand implements Command {
                                                 try {
                                                     reader = sourcesInfo.readerPool.acquire();
                                                     IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
-                                                    copyFromMetaSeries(medataSrc, iSeries, meta, 0);
+                                                    transferSeriesMeta(medataSrc, iSeries, meta, 0);
                                                 } finally {
                                                     sourcesInfo.readerPool.recycle(reader);
                                                 }
