@@ -240,16 +240,20 @@ public class KheopsHelper {
     }
 
     public static void transferPlaneMeta(MetadataRetrieve metaSrc, int seriesSrc, int planeSrc, MetadataStore metaDst, int seriesDst, int planeDst) {
-        Time t = metaSrc.getPlaneExposureTime(seriesSrc, planeSrc);
-        if (t!=null) metaDst.setPlaneExposureTime(t, seriesDst, planeDst);
-        Time dt = metaSrc.getPlaneDeltaT(seriesSrc, planeSrc);
-        if (dt!=null) metaDst.setPlaneDeltaT(dt, seriesDst,planeDst);
-        Length px = metaSrc.getPlanePositionX(seriesSrc, planeSrc);
-        if (px!=null) metaDst.setPlanePositionX(px, seriesDst, planeDst);
-        Length py = metaSrc.getPlanePositionY(seriesSrc, planeSrc);
-        if (py!=null) metaDst.setPlanePositionY(py, seriesDst, planeDst);
-        Length pz = metaSrc.getPlanePositionZ(seriesSrc, planeSrc);
-        if (pz!=null) metaDst.setPlanePositionZ(pz, seriesDst,planeDst);
+        if (metaSrc.getPlaneCount(seriesSrc)>planeSrc) {
+            Time t = metaSrc.getPlaneExposureTime(seriesSrc, planeSrc);
+            if (t != null) metaDst.setPlaneExposureTime(t, seriesDst, planeDst);
+            Time dt = metaSrc.getPlaneDeltaT(seriesSrc, planeSrc);
+            if (dt != null) metaDst.setPlaneDeltaT(dt, seriesDst, planeDst);
+            Length px = metaSrc.getPlanePositionX(seriesSrc, planeSrc);
+            if (px != null) metaDst.setPlanePositionX(px, seriesDst, planeDst);
+            Length py = metaSrc.getPlanePositionY(seriesSrc, planeSrc);
+            if (py != null) metaDst.setPlanePositionY(py, seriesDst, planeDst);
+            Length pz = metaSrc.getPlanePositionZ(seriesSrc, planeSrc);
+            if (pz != null) metaDst.setPlanePositionZ(pz, seriesDst, planeDst);
+        } else {
+            System.err.println("Invalid plane "+planeSrc);
+        }
     }
 
 

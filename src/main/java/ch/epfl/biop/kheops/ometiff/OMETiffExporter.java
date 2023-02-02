@@ -99,9 +99,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	final IMetadata oriMetadata;
 	final int oriMetaDataSeries;
 
-	final ResourcePool<IFormatReader> readerPool;
-	final int readerPoolSeries;
-
 	// ------------ Saving options
 	final CZTRange range; // To save a subset of C Z or T
 	final long tileX, tileY;
@@ -140,15 +137,12 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	final ThreadLocal<Integer> localResolution = new ThreadLocal<>(); // Current resolution level of the thread
 	volatile int currentLevelWritten = -1;
 
-	final Function<TileIterator.IntsKey, byte[]> lvl0DataFetcher;
-
 	protected OMETiffExporter(
 			// Image data and metadata, + czt optional subsetting
 			Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI, // Image data
 			IMetadata originalOmeMeta, int originalSeries,
 			// Writing options
-			OMETiffExporterBuilder.WriterOptions writerSettings,
-			ResourcePool<IFormatReader> readerPool, int readerPoolSeries) throws Exception {
+			OMETiffExporterBuilder.WriterOptions writerSettings) throws Exception {
 		// Monitoring
 		if (writerSettings.taskService != null) {
 			this.writerTask = writerSettings.taskService.createTask("Writing: " + new File(writerSettings.path).getName());
@@ -256,15 +250,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			resToNY, resToNX, writerSettings.maxTilesInQueue);
 		computedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1); // should be enough to avoiding overlap of hash
 
-		if (readerPool == null) {
-			this.readerPool = null;
-			this.readerPoolSeries = -1;
-			lvl0DataFetcher = this::getBytesFromRAIs;
-		} else {
-			this.readerPool = readerPool;
-			this.readerPoolSeries = readerPoolSeries;
-			lvl0DataFetcher = (key) -> this.getBytesFromReaderPool(key);
-		}
 	}
 
 	private byte[] getBytesFromRAIs(TileIterator.IntsKey key) {
@@ -298,70 +283,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 						endY - 1 })), pixelInstance);
 	}
 
-	private byte[] getBytesFromReaderPool(TileIterator.IntsKey key) {
-		int r = key.array[0];
-		int t = key.array[1];
-		int c = key.array[2];
-		int z = key.array[3];
-		int y = key.array[4];
-		int x = key.array[5];
-
-		assert r == 0;
-
-		long startX = x * tileX;
-		long startY = y * tileY;
-
-		long endX = (x + 1) * (tileX);
-		long endY = (y + 1) * (tileY);
-
-		//int	maxX = width; // Before it's the resolution level 0
-		//int	maxY = height;
-
-		if (endX > width) endX = width;
-		if (endY > height) endY = height;
-
-		try {
-			IFormatReader reader = null;
-			try {
-				reader = readerPool.acquire();
-				//System.out.println("oriMetaDataSeries = "+this.readerPoolSeries);
-				reader.setSeries(this.readerPoolSeries);
-				reader.setResolution(0);
-				//System.out.println("W = "+width);
-				//System.out.println("H = "+height);
-				//System.out.println("Tx = "+(endX-startX));
-				//System.out.println("Ty = "+(endY-startY));
-				//System.out.println("endX = "+endX);
-				//System.out.println("endY = "+endY);
-				//System.out.println("endY = "+endY);
-				//System.out.println("StartX = "+(startX));
-				//System.out.println("StartY = "+(startY));
-
-				return reader.openBytes(
-						reader.getIndex(range.getRangeZ().get(z),
-								range.getRangeC().get(c),
-								range.getRangeT().get(t)),
-						(int) (startX), (int) (startY),
-						(int) (endX-startX), (int) (endY-startY)
-				);
-			} finally {
-				readerPool.recycle(reader);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-
-		return null;
-
-		/*RandomAccessibleInterval<T> rai =
-				ctToRAI.get(range.getRangeC()
-						.get(c)).get(range.getRangeT().get(t));
-		RandomAccessibleInterval<T> slice = Views.hyperSlice(rai, 2,
-				range.getRangeZ().get(z));
-		return SourceToByteArray.raiToByteArray(Views.interval(slice,
-				new FinalInterval(new long[] { startX, startY }, new long[] { endX - 1,
-						endY - 1 })), pixelInstance);*/
-	}
 
 	private void computeTile(TileIterator.IntsKey key) throws Exception {
 		/*int r = key.array[0];
@@ -452,16 +373,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 		if (r == 0) {
 			localResolution.set(r);
-			/*RandomAccessibleInterval<T> rai =ctToRAI.get(range.getRangeC().get(c)).get(range.getRangeT().get(t));
-					//sources[range.getRangeC()
-					//.get(c)].getSource(range.getRangeT().get(t), r);
-			RandomAccessibleInterval<T> slice = Views.hyperSlice(rai, 2,
-					range.getRangeZ().get(z));
-			byte[] tileByte = SourceToByteArray.raiToByteArray(Views.interval(slice,
-					new FinalInterval(new long[] { startX, startY }, new long[] { endX - 1,
-							endY - 1 })), pixelInstance);
-			computedBlocks.put(key, tileByte);*/
-			computedBlocks.put(key, this.lvl0DataFetcher.apply(key));
+			computedBlocks.put(key, getBytesFromRAIs(key));
 		}
 		else {
 			// Wait for the previous resolution level to be written !
@@ -663,14 +575,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			}
 
 			if (r > 0) writer.setInterleaved(false); // But why the heck ???
-			if ((r == 0) && (readerPool!=null) && isRGB) {
-				IFormatReader reader = readerPool.acquire();
-				reader.setResolution(0);
-				reader.setSeries(this.readerPoolSeries);
-				writer.setInterleaved(reader.isInterleaved());
-				omeMeta.setPixelsBigEndian(!reader.isLittleEndian(),dstSeries);
-				readerPool.recycle(reader);
-			}
 			logger.debug("Saving resolution size " + r);
 			writer.setResolution(r);
 
@@ -776,21 +680,15 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	}
 
 	private int getOriginalPlaneIndex(int oriC, int oriZ, int oriT) {
-		return oriT * sizeZ * sizeC + oriC * sizeZ + oriZ;
-		/*if (oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries))
-		return oriT * sizeZ * sizeC + oriC * sizeZ + oriZ;*/
-		// t * sizeZ * sizeC + c * sizeZ + z
-		//XYZCT default
-		/*switch (oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries)) {
+		switch (oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries)) {
 			case XYZCT: return oriT * sizeC * sizeZ + oriC * sizeZ + oriZ;
-			case XYZTC: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
-			case XYCTZ: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
-			case XYCZT: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
-			case XYTCZ: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
-			case XYTZC: return oriC * sizeT * sizeZ + oriT * sizeC + oriZ;
-			default: throw new IllegalArgumentException("Unknow dimension order "+oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries));
-		}*/
-
+			case XYZTC: return oriC * sizeT * sizeZ + oriT * sizeZ + oriZ;
+			case XYCTZ: return oriZ * sizeT * sizeC + oriT * sizeC + oriC;
+			case XYCZT: return oriT * sizeZ * sizeC + oriZ * sizeC + oriC;
+			case XYTCZ: return oriZ * sizeC * sizeT + oriC * sizeT + oriT;
+			case XYTZC: return oriC * sizeZ * sizeT + oriZ * sizeT + oriT;
+			default: throw new IllegalArgumentException("Unknown dimension order "+oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries));
+		}
 	}
 
 	private String getFileName(int r) {
@@ -821,9 +719,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			protected final int pixelsSizeX, pixelsSizeY, pixelsSizeZ, pixelsSizeC, pixelsSizeT;
 			protected final Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI;
 
-			protected final ResourcePool<IFormatReader> readerPool;
-			protected final int readerPoolSeries;
-
 			protected final T pixelInstance;
 
 			private Data(DataBuilder<T> builder) {
@@ -834,23 +729,12 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				this.pixelsSizeT = builder.nTimePoints;
 				this.ctToRAI = builder.ctToRAI;
 				this.pixelInstance = builder.pixelInstance;
-				this.readerPoolSeries = builder.readerPoolSeries;
-				this.readerPool = builder.readerPool;
 			}
 			public static class DataBuilder<T> {
 				private int nPixelX = -1, nPixelY = -1, nPixelZ = -1;
 				private int nChannels = -1, nTimePoints = -1;
 				private Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI = new HashMap<>();
 				T pixelInstance;
-
-				ResourcePool<IFormatReader> readerPool;
-				int readerPoolSeries;
-
-				public DataBuilder<T> setReaderPool(ResourcePool<IFormatReader> readerPool, int series) {
-					this.readerPool = readerPool;
-					this.readerPoolSeries = series;
-					return this;
-				}
 
 				public DataBuilder<T> put(int channel, Source<T> source) throws UnsupportedOperationException {
 					int t = 0;
@@ -1268,7 +1152,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					}
 
 					WriterOptions wOpts = new WriterOptions(this);
-					return new OMETiffExporter(data.ctToRAI, metaData.omeMeta, metaData.series, wOpts, data.readerPool, data.readerPoolSeries);
+					return new OMETiffExporter(data.ctToRAI, metaData.omeMeta, metaData.series, wOpts);
 				}
 			}
 		}
