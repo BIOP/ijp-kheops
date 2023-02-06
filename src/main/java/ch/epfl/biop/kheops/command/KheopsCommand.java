@@ -34,6 +34,7 @@ import org.scijava.Context;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
+import org.scijava.task.Task;
 import org.scijava.task.TaskService;
 
 import java.io.File;
@@ -94,6 +95,8 @@ public class KheopsCommand implements Command {
     @Parameter
     Context context;
 
+    final Object cancelConcatenator = new Object();
+
     @Override
     public void run() {
 
@@ -138,110 +141,139 @@ public class KheopsCommand implements Command {
         Map<Integer, String> indexToFilePath = new HashMap<>();
         Set<String> paths = new HashSet<>();
 
+        Task iniBatchTask = null;
+        int sSeries = series.size();
+        if (sSeries>1) {
+            iniBatchTask = taskService.createTask("OME-Tiff export of " + input_path.getName());
+            iniBatchTask.setProgressMaximum(series.size());
+            iniBatchTask.start();
+        }
+        Task batchTask = iniBatchTask;
 
-        series.forEach(iSeries -> {
-            String fileNameWithOutExt = FilenameUtils.removeExtension(fileName);
-            if (series.size()>1) {
-                if (sourcesInfo.idToSeriesIndex.containsKey(iSeries)) {
-                    fileNameWithOutExt += "_" + sourcesInfo.idToImageName.get(sourcesInfo.seriesToId.get(iSeries)).getName();
-                } else {
-                    fileNameWithOutExt += "_" + iSeries;
-                }
-            }
-            boolean appendSuffix = false;
-            int counter = 0;
-            if (paths.contains(fileNameWithOutExt)) {
-                fileNameWithOutExt+="_s"+iSeries;
-            }
-            while (paths.contains(fileNameWithOutExt)) {
-                if (appendSuffix) {
-                    fileNameWithOutExt = fileNameWithOutExt.substring(0,fileNameWithOutExt.length()-2)+"_"+counter;
-                } else {
-                    fileNameWithOutExt += "_"+counter;
-                }
-                appendSuffix = true;
-                counter++;
-            }
-            paths.add(fileNameWithOutExt);
-            indexToFilePath.put(iSeries, fileNameWithOutExt+".ome.tiff");
-        });
-
-        Stream<Integer> idStream =  series.stream();
-
-        if (process_series_in_parallel) idStream.parallel();
-
-        final boolean parallelProcess = process_series_in_parallel;
-
-        idStream.forEach(iSeries -> {
-            SourceAndConverter[] sources = sourcesInfo.idToSources.get(iSeries).toArray(new SourceAndConverter[0]);
-
-            File output_path = new File(output_dir, indexToFilePath.get(iSeries));
-
-            if (output_path.exists()) {
-                IJ.log("Error: file "+output_path.getAbsolutePath()+" already exists. Skipped!");
-            } else {
-
-                int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0, 0).max(0), sources[0].getSpimSource().getSource(0, 0).max(1));
-
-                int nResolutions = 1;
-
-                while (sizeFullResolution > tileSize) {
-                    sizeFullResolution /= 2;
-                    nResolutions++;
-                }
-
-                try {
-                    OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
-                            .put(sources)
-                            //.setReaderPool(sourcesInfo.readerPool, iSeries)
-                            .defineMetaData("Image")
-                            .applyOnMeta(meta -> {
-                                IFormatReader reader = null;
-                                try {
-                                    try {
-                                        reader = sourcesInfo.readerPool.acquire();
-                                        IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
-                                        transferSeriesMeta(medataSrc, iSeries, meta, 0);
-                                    } finally {
-                                        sourcesInfo.readerPool.recycle(reader);
-                                    }
-                                } catch (Exception e) {
-                                    e.printStackTrace();
-                                }
-                                return meta;
-                            });
-                    if (override_voxel_size) {
-                        builder.voxelPhysicalSizeMicrometer(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
+        try {
+            series.forEach(iSeries -> {
+                String fileNameWithOutExt = FilenameUtils.removeExtension(fileName);
+                if (series.size() > 1) {
+                    if (sourcesInfo.idToSeriesIndex.containsKey(iSeries)) {
+                        fileNameWithOutExt += "_" + sourcesInfo.idToImageName.get(sourcesInfo.seriesToId.get(iSeries)).getName();
+                    } else {
+                        fileNameWithOutExt += "_" + iSeries;
                     }
-                    builder.defineWriteOptions()
-                        .maxTilesInQueue(numberOfBlocksComputedInAdvance)
-                        .compression(compression)
-                        .compressTemporaryFiles(compress_temp_files)
-                        .nThreads(parallelProcess ? 0 : nThreads)
-                        .downsample(2)
-                        .nResolutionLevels(nResolutions)
-                        .rangeT(range_frames)
-                        .rangeC(range_channels)
-                        .rangeZ(range_slices)
-                        .monitor(taskService)
-                        .savePath(output_path.getAbsolutePath())
-                        .tileSize(tileSize, tileSize).create().export();
+                }
+                boolean appendSuffix = false;
+                int counter = 0;
+                if (paths.contains(fileNameWithOutExt)) {
+                    fileNameWithOutExt += "_s" + iSeries;
+                }
+                while (paths.contains(fileNameWithOutExt)) {
+                    if (appendSuffix) {
+                        fileNameWithOutExt = fileNameWithOutExt.substring(0, fileNameWithOutExt.length() - 2) + "_" + counter;
+                    } else {
+                        fileNameWithOutExt += "_" + counter;
+                    }
+                    appendSuffix = true;
+                    counter++;
+                }
+                paths.add(fileNameWithOutExt);
+                indexToFilePath.put(iSeries, fileNameWithOutExt + ".ome.tiff");
+            });
 
-                } catch (Exception e) {
-                    IJ.log("Error with " + output_path + " export.");
+            Stream<Integer> idStream = series.stream();
+
+            if (process_series_in_parallel) idStream.parallel();
+
+            final boolean parallelProcess = process_series_in_parallel;
+
+            idStream.forEach(iSeries -> {
+                if ((batchTask==null)||(!batchTask.isCanceled())) {
+                    SourceAndConverter[] sources = sourcesInfo.idToSources.get(iSeries).toArray(new SourceAndConverter[0]);
+
+                    File output_path = new File(output_dir, indexToFilePath.get(iSeries));
+
+                    if (output_path.exists()) {
+                        IJ.log("Error: file " + output_path.getAbsolutePath() + " already exists. Skipped!");
+                    } else {
+
+                        int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0, 0).max(0), sources[0].getSpimSource().getSource(0, 0).max(1));
+
+                        int nResolutions = 1;
+
+                        while (sizeFullResolution > tileSize) {
+                            sizeFullResolution /= 2;
+                            nResolutions++;
+                        }
+
+                        try {
+                            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
+                                    .put(sources)
+                                    .defineMetaData("Image")
+                                    .applyOnMeta(meta -> {
+                                        IFormatReader reader = null;
+                                        try {
+                                            try {
+                                                reader = sourcesInfo.readerPool.acquire();
+                                                IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
+                                                transferSeriesMeta(medataSrc, iSeries, meta, 0);
+                                            } finally {
+                                                sourcesInfo.readerPool.recycle(reader);
+                                            }
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                        return meta;
+                                    });
+                            if (override_voxel_size) {
+                                builder.voxelPhysicalSizeMicrometer(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
+                            }
+                            OMETiffExporter exporter = builder.defineWriteOptions()
+                                    .maxTilesInQueue(numberOfBlocksComputedInAdvance)
+                                    .compression(compression)
+                                    .compressTemporaryFiles(compress_temp_files)
+                                    .nThreads(parallelProcess ? 0 : nThreads)
+                                    .downsample(2)
+                                    .nResolutionLevels(nResolutions)
+                                    .rangeT(range_frames)
+                                    .rangeC(range_channels)
+                                    .rangeZ(range_slices)
+                                    .monitor(taskService)
+                                    .savePath(output_path.getAbsolutePath())
+                                    .tileSize(tileSize, tileSize).create();
+
+                            if (batchTask!=null) {
+                                synchronized (cancelConcatenator) {
+                                    Runnable callback = batchTask.getCancelCallBack();
+                                    batchTask.setCancelCallBack(() -> {
+                                        callback.run();
+                                        exporter.cancelExport();
+                                    });
+                                }
+                            }
+
+                            exporter.export();
+                            if (batchTask!=null) {
+                                synchronized (cancelConcatenator) {
+                                    batchTask.setProgressValue(batchTask.getProgressValue() + 1);
+                                }
+                            }
+
+                        } catch (Exception e) {
+                            IJ.log("Error with " + output_path + " export.");
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            });
+
+            sourcesInfo.readerPool.shutDown(reader -> {
+                try {
+                    reader.close();
+                } catch (IOException e) {
                     e.printStackTrace();
                 }
-            }
-
-        });
-
-        sourcesInfo.readerPool.shutDown(reader -> {
-            try {
-                reader.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
+            });
+        } finally {
+            if (batchTask!=null) batchTask.finish();
+        }
         // CODE HERE
         Instant finish = Instant.now();
         long timeElapsed = Duration.between(start, finish).toMillis();

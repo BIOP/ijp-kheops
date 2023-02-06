@@ -24,11 +24,9 @@ package ch.epfl.biop.kheops.ometiff;
 
 import bdv.viewer.Source;
 import bdv.viewer.SourceAndConverter;
-import ch.epfl.biop.bdv.img.ResourcePool;
 import ch.epfl.biop.kheops.CZTRange;
 import ch.epfl.biop.kheops.KheopsHelper;
 import loci.common.image.IImageScaler;
-import loci.formats.IFormatReader;
 import loci.formats.MetadataTools;
 import loci.formats.in.OMETiffReader;
 import loci.formats.meta.IMetadata;
@@ -91,8 +89,8 @@ import java.util.function.Function;
 
 public class OMETiffExporter<T extends NumericType<T>> {
 
-	private static final Logger logger = LoggerFactory.getLogger(
-		OMETiffExporter.class);
+	private static final Logger logger = //new SystemLogger(OMETiffExporter.class);
+			LoggerFactory.getLogger(OMETiffExporter.class);
 
 	// ------------ Data and metadata
 	final Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI;
@@ -146,6 +144,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		// Monitoring
 		if (writerSettings.taskService != null) {
 			this.writerTask = writerSettings.taskService.createTask("Writing: " + new File(writerSettings.path).getName());
+			this.writerTask.setCancelCallBack(() -> this.cancelExport());
 		}
 		else {
 			this.writerTask = null;
@@ -252,6 +251,16 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 	}
 
+
+	volatile boolean isCanceled = false;
+
+	public void cancelExport() {
+		isCanceled = true;
+		synchronized (tileLock) { // Notifies that a new resolution level is being written
+			tileLock.notifyAll();
+		}
+	}
+
 	private byte[] getBytesFromRAIs(TileIterator.IntsKey key) {
 		int r = key.array[0];
 		int t = key.array[1];
@@ -285,65 +294,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 
 	private void computeTile(TileIterator.IntsKey key) throws Exception {
-		/*int r = key.array[0];
-		localResolution.set(r);
-		if (r == 0) {
-			computedBlocks.put(key, lvl0DataFetcher.apply(key));
-		} else {
-			int t = key.array[1];
-			int c = key.array[2];
-			int z = key.array[3];
-			int y = key.array[4];
-			int x = key.array[5];
-
-			long startX = x * tileX;
-			long startY = y * tileY;
-
-			// Wait for the previous resolution level to be written !
-			while (r != currentLevelWritten) {
-				synchronized (tileLock) {
-					tileLock.wait();
-				}
-			}
-
-			if ((localResolution.get() == null) || (localResolution.get() != r)) {
-				// Need to update the reader : we are now writing the next resolution
-				// level
-				if (localReader.get() != null) {
-					// Closing the previous local reader
-					localReader.get().close();
-				}
-				else {
-					localScaler.set(new AverageImageScaler());
-				}
-				OMETiffReader reader = new OMETiffReader();
-				IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
-				reader.setMetadataStore(omeMeta);
-				reader.setId(getFileName(r - 1));
-				reader.setSeries(0);
-				localReader.set(reader);
-				localResolution.set(r);
-			}
-
-			int plane = t * sizeZ * sizeC + c * sizeZ + z;
-			long effTileSizeX = tileX * downsample;
-			if (((startX * downsample) + effTileSizeX) >= mapResToWidth.get(r - 1)) {
-				effTileSizeX = mapResToWidth.get(r - 1) - (startX * downsample);
-			}
-			long effTileSizeY = tileY * downsample;
-			if (((startY * downsample) + effTileSizeY) >= mapResToHeight.get(r - 1)) {
-				effTileSizeY = mapResToHeight.get(r - 1) - (startY * downsample);
-			}
-			byte[] tileBytePreviousLevel = localReader.get().openBytes(plane,
-				(int) (startX * downsample), (int) (startY * downsample),
-				(int) (effTileSizeX), (int) (effTileSizeY));
-
-			byte[] tileByte = localScaler.get().downsample(tileBytePreviousLevel,
-				(int) effTileSizeX, (int) effTileSizeY, downsample, bytesPerPixel,
-				isLittleEndian, isFloat, isRGB ? 3 : 1, false);
-
-			computedBlocks.put(key, tileByte);
-		}*/
 		int r = key.array[0];
 		int t = key.array[1];
 		int c = key.array[2];
@@ -354,75 +304,59 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		long startX = x * tileX;
 		long startY = y * tileY;
 
-		long endX = (x + 1) * (tileX);
-		long endY = (y + 1) * (tileY);
-
-		int maxX, maxY;
-
-		if (r != 0) {
-			maxX = mapResToWidth.get(r);
-			maxY = mapResToHeight.get(r);
-		}
-		else {
-			maxX = width;
-			maxY = height;
-		}
-
-		if (endX > maxX) endX = maxX;
-		if (endY > maxY) endY = maxY;
-
 		if (r == 0) {
 			localResolution.set(r);
 			computedBlocks.put(key, getBytesFromRAIs(key));
 		}
 		else {
 			// Wait for the previous resolution level to be written !
-			while (r != currentLevelWritten) {
+			while ((r != currentLevelWritten)&&(isCanceled==false)) {
 				synchronized (tileLock) {
 					tileLock.wait();
 				}
 			}
-
-			if ((localResolution.get() == null) || (localResolution.get() != r)) {
-				// Need to update the reader : we are now writing the next resolution
-				// level
-				if (localReader.get() != null) {
-					// Closing the previous local reader
-					localReader.get().close();
+			if(!isCanceled) {
+				if ((localResolution.get() == null) || (localResolution.get() != r)) {
+					// Need to update the reader : we are now writing the next resolution
+					// level
+					if (localReader.get() != null) {
+						// Closing the previous local reader
+						localReader.get().close();
+						logger.debug("Local reader of "+file.getName()+" closed.");
+					} else {
+						localScaler.set(new AverageImageScaler());
+					}
+					OMETiffReader reader = new OMETiffReader();
+					IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
+					reader.setMetadataStore(omeMeta);
+					reader.setId(getFileName(r - 1));
+					reader.setSeries(0);
+					localReader.set(reader);
+					localResolution.set(r);
 				}
-				else {
-					localScaler.set(new AverageImageScaler());
+
+				int plane = t * sizeZ * sizeC + c * sizeZ + z;
+
+				long effTileSizeX = tileX * downsample;
+				if (((startX * downsample) + effTileSizeX) >= mapResToWidth.get(r - 1)) {
+					effTileSizeX = mapResToWidth.get(r - 1) - (startX * downsample);
 				}
-				OMETiffReader reader = new OMETiffReader();
-				IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
-				reader.setMetadataStore(omeMeta);
-				reader.setId(getFileName(r - 1));
-				reader.setSeries(0);
-				localReader.set(reader);
-				localResolution.set(r);
+
+				long effTileSizeY = tileY * downsample;
+				if (((startY * downsample) + effTileSizeY) >= mapResToHeight.get(r - 1)) {
+					effTileSizeY = mapResToHeight.get(r - 1) - (startY * downsample);
+				}
+
+				byte[] tileBytePreviousLevel = localReader.get().openBytes(plane,
+						(int) (startX * downsample), (int) (startY * downsample),
+						(int) (effTileSizeX), (int) (effTileSizeY));
+
+				byte[] tileByte = localScaler.get().downsample(tileBytePreviousLevel,
+						(int) effTileSizeX, (int) effTileSizeY, downsample, bytesPerPixel,
+						isLittleEndian, isFloat, isRGB ? 3 : 1, false);
+
+				computedBlocks.put(key, tileByte);
 			}
-
-			int plane = t * sizeZ * sizeC + c * sizeZ + z;
-
-			long effTileSizeX = tileX * downsample;
-			if (((startX * downsample) + effTileSizeX) >= mapResToWidth.get(r - 1)) {
-				effTileSizeX = mapResToWidth.get(r - 1) - (startX * downsample);
-			}
-
-			long effTileSizeY = tileY * downsample;
-			if (((startY * downsample) + effTileSizeY) >= mapResToHeight.get(r - 1)) {
-				effTileSizeY = mapResToHeight.get(r - 1) - (startY * downsample);
-			}
-
-			byte[] tileBytePreviousLevel = localReader.get().openBytes(plane,
-					(int) (startX * downsample), (int) (startY * downsample),
-					(int) (effTileSizeX), (int) (effTileSizeY));
-
-			byte[] tileByte = localScaler.get().downsample(tileBytePreviousLevel,
-					(int) effTileSizeX, (int) effTileSizeY, downsample, bytesPerPixel,
-					isLittleEndian, isFloat, isRGB ? 3 : 1, false);
-
-			computedBlocks.put(key, tileByte);
 		}
 	}
 
@@ -440,10 +374,16 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			if (localReader.get() != null) {
 				// Closing localReader.get()
 				localReader.get().close(); // Close last resolution
+				logger.debug("Local reader of "+file.getName()+" closed.");
 			}
 			return false;
-		}
-		else {
+		} else if (isCanceled) {
+			if (localReader.get() != null) {
+				localReader.get().close(); // Close last resolution
+				logger.debug(file.getAbsolutePath()+"\t Thread "+Thread.currentThread()+" local reader closed.");
+			}
+			return false;
+		} else {
 			computeTile(key);
 			synchronized (tileLock) {
 				tileLock.notifyAll();
@@ -464,219 +404,244 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	OMETiffWriter currentLevelWriter;
 
 	public void export() throws Exception {
-		if (writerTask != null) writerTask.setStatusMessage("Exporting " + file
-			.getName() + " with " + nThreads + " threads.");
-		// Copy metadata from ImagePlus:
-		IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
-		IMetadata currentLevelOmeMeta = MetadataTools.createOMEXMLMetadata();
+		try {
+			if (writerTask != null) writerTask.setStatusMessage("Exporting " + file
+					.getName() + " with " + nThreads + " threads.");
+			// Copy metadata from ImagePlus:
+			IMetadata omeMeta = MetadataTools.createOMEXMLMetadata();
+			IMetadata currentLevelOmeMeta = MetadataTools.createOMEXMLMetadata();
 
-		MetadataTools.populateMetadata(omeMeta, dstSeries,
-				oriMetadata.getImageName(oriMetaDataSeries), isLittleEndian,oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries).getValue(),
-				oriMetadata.getPixelsType(oriMetaDataSeries).toString(), width,height,
-				range.getRangeZ().size(),isRGB ? 3:range.getRangeC().size(), range.getRangeT().size(),oriMetadata.getChannelSamplesPerPixel(oriMetaDataSeries,0).getValue());
-		omeMeta.setPixelsInterleaved(oriMetadata.getPixelsInterleaved(oriMetaDataSeries), dstSeries);
+			MetadataTools.populateMetadata(omeMeta, dstSeries,
+					oriMetadata.getImageName(oriMetaDataSeries), isLittleEndian,
+					isRGB ? DimensionOrder.XYCZT.getValue(): DimensionOrder.XYZCT.getValue(),//oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries).getValue(),
+					oriMetadata.getPixelsType(oriMetaDataSeries).toString(), width, height,
+					range.getRangeZ().size(), isRGB ? 3 : range.getRangeC().size(), range.getRangeT().size(), oriMetadata.getChannelSamplesPerPixel(oriMetaDataSeries, 0).getValue());
+			omeMeta.setPixelsInterleaved(oriMetadata.getPixelsInterleaved(oriMetaDataSeries), dstSeries);
 
-		MetadataTools.verifyMinimumPopulated(omeMeta, dstSeries);
+			MetadataTools.verifyMinimumPopulated(omeMeta, dstSeries);
 
-		MetadataTools.populateMetadata(currentLevelOmeMeta, dstSeries,
-				oriMetadata.getImageName(oriMetaDataSeries), isLittleEndian,oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries).getValue(),
-				oriMetadata.getPixelsType(oriMetaDataSeries).toString(), width,height,
-				range.getRangeZ().size(),isRGB? 3:range.getRangeC().size(), range.getRangeT().size(),oriMetadata.getChannelSamplesPerPixel(oriMetaDataSeries,0).getValue());
-		omeMeta.setPixelsInterleaved(oriMetadata.getPixelsInterleaved(oriMetaDataSeries), dstSeries);
+			MetadataTools.populateMetadata(currentLevelOmeMeta, dstSeries,
+					oriMetadata.getImageName(oriMetaDataSeries), isLittleEndian,
+					//oriMetadata.getPixelsDimensionOrder(oriMetaDataSeries).getValue(),
+					isRGB ? DimensionOrder.XYCZT.getValue(): DimensionOrder.XYZCT.getValue(),
+					oriMetadata.getPixelsType(oriMetaDataSeries).toString(), width, height,
+					range.getRangeZ().size(), isRGB ? 3 : range.getRangeC().size(), range.getRangeT().size(), oriMetadata.getChannelSamplesPerPixel(oriMetaDataSeries, 0).getValue());
+			omeMeta.setPixelsInterleaved(oriMetadata.getPixelsInterleaved(oriMetaDataSeries), dstSeries);
 
-		MetadataTools.verifyMinimumPopulated(currentLevelOmeMeta, dstSeries);
+			MetadataTools.verifyMinimumPopulated(currentLevelOmeMeta, dstSeries);
 
-		//MetadataConverter.convertMetadata(oriMetadata, omeMeta);
-		KheopsHelper.transferSeriesMeta(oriMetadata,this.oriMetaDataSeries,omeMeta,this.dstSeries);
-		MetadataConverter.convertMetadata(omeMeta, currentLevelOmeMeta);
+			//MetadataConverter.convertMetadata(oriMetadata, omeMeta);
+			KheopsHelper.transferSeriesMeta(oriMetadata, this.oriMetaDataSeries, omeMeta, this.dstSeries);
+			MetadataConverter.convertMetadata(omeMeta, currentLevelOmeMeta);
 
-		// IMetadata metaDst, int seriesDst, IMetadata metaSrc, int seriesSrc
-		copyChannelsMeta(omeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries );
-		copyChannelsMeta(currentLevelOmeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries);
+			// IMetadata metaDst, int seriesDst, IMetadata metaSrc, int seriesSrc
+			copyChannelsMeta(omeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries);
+			copyChannelsMeta(currentLevelOmeMeta, this.dstSeries, oriMetadata, this.oriMetaDataSeries);
 
-		// Interleave fix
+			// Interleave fix
 
-		for (int r = 0; r < nResolutionLevels - 1; r++) {
-			((IPyramidStore) omeMeta).setResolutionSizeX(new PositiveInteger(
-				mapResToWidth.get(r + 1)), dstSeries, r + 1);
-			((IPyramidStore) omeMeta).setResolutionSizeY(new PositiveInteger(
-				mapResToHeight.get(r + 1)), dstSeries, r + 1);
-		}
-
-		// setup writer for multiresolution file
-		PyramidOMETiffWriter writer = new PyramidOMETiffWriter();
-		writer.setMetadataRetrieve(omeMeta);
-		writer.setWriteSequentially(true); // Setting this to false can be problematic!
-		writer.setBigTiff(true);
-		writer.setId(file.getAbsolutePath());
-		writer.setSeries(dstSeries);
-		writer.setCompression(compression);
-		writer.setTileSizeX((int) tileX);
-		writer.setTileSizeY((int) tileY);
-		writer.setInterleaved(omeMeta.getPixelsInterleaved(dstSeries));
-		totalTiles = 0;
-
-		// Count total number of tiles
-		for (int r = 0; r < nResolutionLevels; r++) {
-			int nXTiles = (int) Math.ceil(mapResToWidth.get(r) / (double) tileX);
-			int nYTiles = (int) Math.ceil(mapResToHeight.get(r) / (double) tileY);
-			totalTiles += nXTiles * nYTiles;
-		}
-		totalTiles *= sizeT * sizeC * sizeZ;
-
-		if (writerTask != null) writerTask.setProgressMaximum(totalTiles);
-
-		for (int i = 0; i < nThreads; i++) {
-			new Thread(() -> {
-				try {
-					while (computeNextTile()) {} // loops until no tile needs computation
-																				// anymore
-				}
-				catch (Exception e) {
-					e.printStackTrace();
-				}
-			}).start();
-		}
-
-		for (int r = 0; r < nResolutionLevels; r++) {
-
-			int maxX = mapResToWidth.get(r);
-			int maxY = mapResToHeight.get(r);
-			int nXTiles = (int) Math.ceil(maxX / (double) tileX);
-			int nYTiles = (int) Math.ceil(maxY / (double) tileY);
-
-			if (r < nResolutionLevels - 1) { // No need to write the last one
-				// Setup current level writer
-				currentLevelWriter = new OMETiffWriter();
-				currentLevelWriter.setWriteSequentially(true); // Setting this to false
-																												// can be problematic!
-				currentLevelOmeMeta.setPixelsSizeX(new PositiveInteger(maxX), dstSeries);
-				currentLevelOmeMeta.setPixelsSizeY(new PositiveInteger(maxY), dstSeries);
-
-				currentLevelOmeMeta.setPixelsPhysicalSizeX(
-						new Length(omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).value().doubleValue() * Math.pow(downsample, r + 1), omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()), dstSeries);
-				currentLevelOmeMeta.setPixelsPhysicalSizeY(
-						new Length(omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries).value().doubleValue() * Math.pow(downsample, r + 1), omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()), dstSeries);
-
-				currentLevelOmeMeta.setPixelsDimensionOrder(DimensionOrder.XYCZT, 0);
-				currentLevelWriter.setMetadataRetrieve(currentLevelOmeMeta);
-				currentLevelWriter.setBigTiff(true);
-				currentLevelWriter.setId(getFileName(r));
-				currentLevelWriter.setSeries(dstSeries);
-				if (compressTempFile) currentLevelWriter.setCompression(compression);
-				currentLevelWriter.setTileSizeX((int) tileX);
-				currentLevelWriter.setTileSizeY((int) tileY);
-				if (r == 0) {
-					currentLevelWriter.setInterleaved(true);
-				}
-				else {
-					currentLevelWriter.setInterleaved(false); // !!!! weird. See TestOMETIFFRGBMultiScaleTile
-				}
+			for (int r = 0; r < nResolutionLevels - 1; r++) {
+				((IPyramidStore) omeMeta).setResolutionSizeX(new PositiveInteger(
+						mapResToWidth.get(r + 1)), dstSeries, r + 1);
+				((IPyramidStore) omeMeta).setResolutionSizeY(new PositiveInteger(
+						mapResToHeight.get(r + 1)), dstSeries, r + 1);
 			}
 
-			if (r > 0) writer.setInterleaved(false); // But why the heck ???
-			logger.debug("Saving resolution size " + r);
-			writer.setResolution(r);
+			// setup writer for multiresolution file
+			PyramidOMETiffWriter writer = new PyramidOMETiffWriter();
+			writer.setMetadataRetrieve(omeMeta);
+			writer.setWriteSequentially(true); // Setting this to false can be problematic!
+			writer.setBigTiff(true);
+			writer.setId(file.getAbsolutePath());
+			writer.setSeries(dstSeries);
+			writer.setCompression(compression);
+			writer.setTileSizeX((int) tileX);
+			writer.setTileSizeY((int) tileY);
+			writer.setInterleaved(omeMeta.getPixelsInterleaved(dstSeries));
+			totalTiles = 0;
 
-			currentLevelWritten = r;
-			synchronized (tileLock) { // Notifies that a new resolution level is being written
-				tileLock.notifyAll();
+			// Count total number of tiles
+			for (int r = 0; r < nResolutionLevels; r++) {
+				int nXTiles = (int) Math.ceil(mapResToWidth.get(r) / (double) tileX);
+				int nYTiles = (int) Math.ceil(mapResToHeight.get(r) / (double) tileY);
+				totalTiles += nXTiles * nYTiles;
+			}
+			totalTiles *= sizeT * sizeC * sizeZ;
+
+			if (writerTask != null) writerTask.setProgressMaximum(totalTiles);
+
+			for (int i = 0; i < nThreads; i++) {
+				logger.debug("Starting " + nThreads + " threads.");
+				new Thread(() -> {
+					try {
+						while (computeNextTile()) {
+						} // loops until no tile needs computation anymore (finished or canceled)
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+					logger.debug(file.getAbsolutePath() + "\t Thread " + Thread.currentThread() + " stopped.");
+				}).start();
 			}
 
-			for (int t = 0; t < sizeT; t++) {
-				for (int c = 0; c < sizeC; c++) {
-					for (int z = 0; z < sizeZ; z++) {
-						int plane = t * sizeZ * sizeC + c * sizeZ + z;
-						if (r == 0) {
-							//omeMeta.setPlaneDeltaT();
-							int oriC = range.getRangeC().get(c);
-							int oriZ = range.getRangeZ().get(z);
-							int oriT = range.getRangeT().get(t);
-							int oriPlane = getOriginalPlaneIndex(oriC, oriZ, oriT);
-							omeMeta.setPlaneTheC(new NonNegativeInteger(c), dstSeries, plane);
-							omeMeta.setPlaneTheZ(new NonNegativeInteger(z), dstSeries, plane);
-							omeMeta.setPlaneTheT(new NonNegativeInteger(t), dstSeries, plane);
-							KheopsHelper.transferPlaneMeta(oriMetadata,oriMetaDataSeries,oriPlane,omeMeta,dstSeries,plane);
-						}
-						for (int y = 0; y < nYTiles; y++) {
-							for (int x = 0; x < nXTiles; x++) {
-								long startX = x * tileX;
-								long startY = y * tileY;
-								long endX = (x + 1) * (tileX);
-								long endY = (y + 1) * (tileY);
-								if (endX > maxX) endX = maxX;
-								if (endY > maxY) endY = maxY;
-								TileIterator.IntsKey key = new TileIterator.IntsKey(new int[] {
-									r, t, c, z, y, x });
+			for (int r = 0; r < nResolutionLevels; r++) {
 
-								if (nThreads == 0) {
-									computeTile(key);
-								}
-								else {
-									while (!computedBlocks.containsKey(key)) {
-										synchronized (tileLock) {
-											tileLock.wait();
+				int maxX = mapResToWidth.get(r);
+				int maxY = mapResToHeight.get(r);
+				int nXTiles = (int) Math.ceil(maxX / (double) tileX);
+				int nYTiles = (int) Math.ceil(maxY / (double) tileY);
+
+				if (r < nResolutionLevels - 1) { // No need to write the last one
+					// Setup current level writer
+					currentLevelWriter = new OMETiffWriter();
+					currentLevelWriter.setWriteSequentially(true); // Setting this to false
+					// can be problematic!
+					currentLevelOmeMeta.setPixelsSizeX(new PositiveInteger(maxX), dstSeries);
+					currentLevelOmeMeta.setPixelsSizeY(new PositiveInteger(maxY), dstSeries);
+
+					currentLevelOmeMeta.setPixelsPhysicalSizeX(
+							new Length(omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).value().doubleValue() * Math.pow(downsample, r + 1), omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()), dstSeries);
+					currentLevelOmeMeta.setPixelsPhysicalSizeY(
+							new Length(omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries).value().doubleValue() * Math.pow(downsample, r + 1), omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()), dstSeries);
+
+					currentLevelOmeMeta.setPixelsDimensionOrder(DimensionOrder.XYCZT, 0);
+					currentLevelWriter.setMetadataRetrieve(currentLevelOmeMeta);
+					currentLevelWriter.setBigTiff(true);
+					currentLevelWriter.setId(getFileName(r));
+					currentLevelWriter.setSeries(dstSeries);
+					if (compressTempFile) currentLevelWriter.setCompression(compression);
+					currentLevelWriter.setTileSizeX((int) tileX);
+					currentLevelWriter.setTileSizeY((int) tileY);
+					if (r == 0) {
+						currentLevelWriter.setInterleaved(true);
+					} else {
+						currentLevelWriter.setInterleaved(false); // !!!! weird. See TestOMETIFFRGBMultiScaleTile
+					}
+				}
+
+				if (r > 0) writer.setInterleaved(false); // But why the heck ???
+				logger.debug("Saving resolution size " + r);
+				writer.setResolution(r);
+
+				currentLevelWritten = r;
+				synchronized (tileLock) { // Notifies that a new resolution level is being written
+					tileLock.notifyAll();
+				}
+				loops:
+				// For cancellation
+				for (int t = 0; t < sizeT; t++) {
+					for (int c = 0; c < sizeC; c++) {
+						for (int z = 0; z < sizeZ; z++) {
+							int plane = t * sizeZ * sizeC + c * sizeZ + z;
+							/*if (r == 0) {
+								int oriC = range.getRangeC().get(c);
+								int oriZ = range.getRangeZ().get(z);
+								int oriT = range.getRangeT().get(t);
+								int oriPlane = getOriginalPlaneIndex(oriC, oriZ, oriT);
+								omeMeta.setPlaneTheC(new NonNegativeInteger(c), dstSeries, plane);
+								omeMeta.setPlaneTheZ(new NonNegativeInteger(z), dstSeries, plane);
+								omeMeta.setPlaneTheT(new NonNegativeInteger(t), dstSeries, plane);
+								KheopsHelper.transferPlaneMeta(oriMetadata, oriMetaDataSeries, oriPlane, omeMeta, dstSeries, plane);
+							}*/
+							for (int y = 0; y < nYTiles; y++) {
+								for (int x = 0; x < nXTiles; x++) {
+									long startX = x * tileX;
+									long startY = y * tileY;
+									long endX = (x + 1) * (tileX);
+									long endY = (y + 1) * (tileY);
+									if (endX > maxX) endX = maxX;
+									if (endY > maxY) endY = maxY;
+									TileIterator.IntsKey key = new TileIterator.IntsKey(new int[]{
+											r, t, c, z, y, x});
+
+									if (nThreads == 0) {
+										computeTile(key);
+										if (isCanceled) {
+											break loops;
+										}
+									} else {
+										while (!computedBlocks.containsKey(key)) {
+											synchronized (tileLock) {
+												tileLock.wait();
+											}
+											if (isCanceled) {
+												break loops;
+											}
 										}
 									}
+
+									if (r < nResolutionLevels - 1) {
+										currentLevelWriter.saveBytes(plane, computedBlocks.get(key),
+												(int) startX, (int) startY, (int) (endX - startX),
+												(int) (endY - startY));
+									}
+
+									writer.saveBytes(plane, computedBlocks.get(key), (int) startX,
+											(int) startY, (int) (endX - startX), (int) (endY - startY));
+
+									computedBlocks.remove(key);
+									tileIterator.decrementQueue();
+									if (writerTask != null) writerTask.setProgressValue(writtenTiles
+											.incrementAndGet());
 								}
-
-								//int plane = t * sizeZ * sizeC + c * sizeZ + z;
-
-								//System.out.println("computedBlocks.get(key).length = "+computedBlocks.get(key).length);
-								if (r < nResolutionLevels - 1) {
-									currentLevelWriter.saveBytes(plane, computedBlocks.get(key),
-										(int) startX, (int) startY, (int) (endX - startX),
-										(int) (endY - startY));
-								}
-
-								writer.saveBytes(plane, computedBlocks.get(key), (int) startX,
-									(int) startY, (int) (endX - startX), (int) (endY - startY));
-
-								computedBlocks.remove(key);
-								tileIterator.decrementQueue();
-								if (writerTask != null) writerTask.setProgressValue(writtenTiles
-									.incrementAndGet());
 							}
 						}
 					}
 				}
+				if (r < nResolutionLevels - 1) {
+					currentLevelWriter.close();
+				}
 			}
-			if (r < nResolutionLevels - 1) {
-				currentLevelWriter.close();
-			}
-		}
 
-		if (nThreads == 0) {
+			if (nThreads == 0) {
+				if (writerTask != null) {
+					writerTask.setStatusMessage("Closing readers.");
+				}
+				if (localReader.get() != null) {
+					localReader.get().close();
+					logger.debug("Local reader of " + file.getName() + " closed.");
+				}
+			}
 			if (writerTask != null) {
-				writerTask.setStatusMessage("Closing readers.");
+				writerTask.setStatusMessage("Deleting temporary files.");
 			}
-			if (localReader.get() != null) {
-				localReader.get().close();
+			for (int r = 0; r < nResolutionLevels - 1; r++) {
+				boolean result = new File(getFileName(r)).delete();
+				if (!result) logger.warn("File " + getFileName(r) + " couldn't be deleted.");
 			}
-		}
-		if (writerTask != null) {
-			writerTask.setStatusMessage("Deleting temporary files.");
-		}
-		for (int r = 0; r < nResolutionLevels - 1; r++) {
-			new File(getFileName(r)).delete();
-		}
-		computedBlocks.clear();
-		if (writerTask != null) {
-			// Let's do a quick computation based on the following assumption: 5
-			// minutes for 100k blocks
-			int estimateTimeMin = (int) (5 * totalTiles / 1e5);
-			if (estimateTimeMin < 2) {
-				writerTask.setStatusMessage(
-					"Closing writer... please wait a few minutes.");
+			computedBlocks.clear();
+			if (writerTask != null) {
+				// Let's do a quick computation based on the following assumption: 5
+				// minutes for 100k blocks
+				int estimateTimeMin = (int) (5 * totalTiles / 1e5);
+				if (estimateTimeMin < 2) {
+					writerTask.setStatusMessage(
+							"Closing writer... please wait a few minutes.");
+				} else {
+					writerTask.setStatusMessage(
+							"Closing writer... please wait, this can take around " +
+									estimateTimeMin + " minutes.");
+				}
 			}
-			else {
-				writerTask.setStatusMessage(
-					"Closing writer... please wait, this can take around " +
-						estimateTimeMin + " minutes.");
+			try {
+				writer.close();
+				logger.debug("Writer of " + file.getName() + " closed.");
+			} catch (Exception e) {
+				if (isCanceled) {
+					logger.error("Error during cancellation: " + e.getMessage());
+				} else {
+					e.printStackTrace();
+				}
+			} finally {
+				if (isCanceled) {
+					boolean result = new File(file.getAbsolutePath()).delete();
+					if (!result) {
+						logger.warn("Cancellation: could not delete file " + file.getAbsolutePath());
+					}
+				}
 			}
+		} finally {
+			if (writerTask != null) writerTask.finish();
 		}
-		writer.close();
-		if (writerTask != null) writerTask.run(() -> {});
 	}
 
 	private int getOriginalPlaneIndex(int oriC, int oriZ, int oriT) {
@@ -1157,4 +1122,5 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			}
 		}
 	}
+
 }
