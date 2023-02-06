@@ -31,6 +31,7 @@ import loci.formats.IFormatReader;
 import loci.formats.meta.IMetadata;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.Context;
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
@@ -59,34 +60,36 @@ public class KheopsBatchCommand implements Command {
     @Parameter(label = "Select input files (required)", style="open")
     File[] input_paths;
 
-    @Parameter( label = "Selected Series. Leave blank for all", required = false )
-    String range_series = "";
-
-    @Parameter( label = "Selected Channels. Leave blank for all", required = false )
-    String range_channels = "";
-
-    @Parameter( label = "Selected Slices. Leave blank for all", required = false )
-    String range_slices = "";
-
-    @Parameter( label = "Selected Timepoints. Leave blank for all", required = false )
-    String range_frames = "";
-
-    @Parameter(label= "Specify an output folder (optional)", style = "directory", required=false)
+    @Parameter(label= "Output folder (optional)", style = "directory", required=false)
     File output_dir;
-
     @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
     String compression = "LZW";
 
-    @Parameter(label="Compress temporary files (save space on drive during conversion)")
+    @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
+    String message = "<html><b>Subset in CTZ and series. Leave fields blank to export all.<br></b>" +
+            "You can use commas or colons to separate ranges. eg. '1:2:10' or '1,3,5,8'. '-1' is the last index.</html>";
+
+    @Parameter( label = "Series subset:", required = false )
+    String subset_series = "";
+    @Parameter( label = "Channels subset:", required = false )
+    String subset_channels = "";
+
+    @Parameter( label = "Slices subset:", required = false )
+    String subset_slices = "";
+
+    @Parameter( label = "Timepoints subset:", required = false )
+    String subset_frames = "";
+
+    @Parameter(label="Compress temporary files (LZW)")
     boolean compress_temp_files = false;
 
     @Parameter(label="Override voxel sizes")
     boolean override_voxel_size;
 
-    @Parameter(label="Voxel size in micrometer (XY)", style="format:#.000")
+    @Parameter(label="XY Voxel size in micrometer", style="format:0.000")
     double vox_size_xy;
 
-    @Parameter(label="Voxel Z size in micrometer (Z)", style="format:#.000")
+    @Parameter(label="Z Voxel size in micrometer", style="format:0.000")
     double vox_size_z;
 
     Set<String> paths = new HashSet<>();
@@ -101,7 +104,7 @@ public class KheopsBatchCommand implements Command {
     @Parameter
     Context context;
 
-    final Object cancelConcatenator = new Object();
+    final Object cancelConcatenatorLock = new Object();
 
     @Override
     public void run() {
@@ -150,7 +153,7 @@ public class KheopsBatchCommand implements Command {
 
                             List<Integer> series;
                             try {
-                                series = new IntRangeParser(range_series).get(nSeriesOriginal);
+                                series = new IntRangeParser(subset_series).get(nSeriesOriginal);
                             } catch (Exception e) {
                                 e.printStackTrace();
                                 throw new RuntimeException(e);
@@ -233,15 +236,15 @@ public class KheopsBatchCommand implements Command {
                                                     .nThreads(0)
                                                     .downsample(2)
                                                     .nResolutionLevels(nResolutions)
-                                                    .rangeT(range_frames)
-                                                    .rangeC(range_channels)
-                                                    .rangeZ(range_slices)
+                                                    .rangeT(subset_frames)
+                                                    .rangeC(subset_channels)
+                                                    .rangeZ(subset_slices)
                                                     .monitor(taskService)
                                                     .savePath(output_path.getAbsolutePath())
                                                     .tileSize(tileSize, tileSize).create();
 
                                             if (batchTask!=null) {
-                                                synchronized (cancelConcatenator) {
+                                                synchronized (cancelConcatenatorLock) {
                                                     Runnable callback = batchTask.getCancelCallBack();
                                                     batchTask.setCancelCallBack(() -> {
                                                         callback.run();
@@ -269,7 +272,7 @@ public class KheopsBatchCommand implements Command {
                             });
 
                             if (batchTask!=null) {
-                                synchronized (cancelConcatenator) {
+                                synchronized (cancelConcatenatorLock) {
                                     batchTask.setProgressValue(batchTask.getProgressValue() + 1);
                                 }
                             }

@@ -50,7 +50,6 @@ import ome.xml.meta.MetadataConverter;
 import ome.xml.model.enums.DimensionOrder;
 import ome.xml.model.enums.PixelType;
 import ome.xml.model.primitives.Color;
-import ome.xml.model.primitives.NonNegativeInteger;
 import ome.xml.model.primitives.PositiveInteger;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.task.Task;
@@ -508,7 +507,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					currentLevelWriter.setBigTiff(true);
 					currentLevelWriter.setId(getFileName(r));
 					currentLevelWriter.setSeries(dstSeries);
-					if (compressTempFile) currentLevelWriter.setCompression(compression);
+					if (compressTempFile) currentLevelWriter.setCompression(CompressionType.LZW.getCompression());
 					currentLevelWriter.setTileSizeX((int) tileX);
 					currentLevelWriter.setTileSizeY((int) tileY);
 					if (r == 0) {

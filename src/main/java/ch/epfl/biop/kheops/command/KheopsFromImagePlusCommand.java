@@ -33,7 +33,7 @@ import org.scijava.plugin.Plugin;
 import java.io.File;
 import java.time.Instant;
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert Image to Pyramidal OME")
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert Image to Pyramidal OME TIFF")
 public class KheopsFromImagePlusCommand implements Command {
 
     @Parameter
@@ -49,7 +49,7 @@ public class KheopsFromImagePlusCommand implements Command {
     int pyramidResolution=2;
 
     @Parameter(label="Pyramid level downsampling factor")
-    int pyramidScale=4;
+    int pyramidScale=2;
 
     @Parameter
     LogService logger;
