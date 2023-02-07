@@ -5,6 +5,7 @@ import org.slf4j.Marker;
 
 import java.time.Instant;
 
+// Simple logger to debug without using a complicated logging system
 public class SystemLogger implements Logger {
 
     final String name;

@@ -22,8 +22,6 @@
 
 package ch.epfl.biop.kheops.ometiff;
 
-import org.scijava.task.Task;
-
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
@@ -110,7 +108,6 @@ public class TileIterator implements Iterator<TileIterator.IntsKey> {
 			}
 		}
 		nTilesInQueue.incrementAndGet();
-		if (task != null) task.setProgressValue(nTilesInQueue.get());
 		return new IntsKey(new int[] { ir, it, ic, iz, iy, ix });
 	}
 
@@ -121,12 +118,6 @@ public class TileIterator implements Iterator<TileIterator.IntsKey> {
 		}
 	}
 
-	Task task = null;
-
-	public void setTask(Task task) {
-		this.task = task;
-		task.setProgressMaximum(maxTilesInQueue);
-	}
 
 	public static final class IntsKey {
 

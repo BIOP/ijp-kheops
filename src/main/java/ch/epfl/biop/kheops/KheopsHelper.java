@@ -69,12 +69,6 @@ public class KheopsHelper {
                                                             String position_convention,
                                                             Context context) {
 
-       /* OpenerSettings settings = new OpenerSettings()
-                .bioFormatsBuilder()
-                .location(path)
-                .cacheBlockSize(tileX, tileY, 1)
-                .readerPoolSize(nParallelJobs);*/
-
         List<OpenerSettings> openerSettings = new ArrayList<>();
         File f = new File(path);
         int nSeries = BioFormatsHelper.getNSeries(f);
@@ -86,15 +80,12 @@ public class KheopsHelper {
                             .micrometer()
                             .cacheBlockSize(tileX,tileY, 1)
                             .readerPoolSize(nParallelJobs)
-                            //.unit(unit)
                             .splitRGBChannels(splitRGB)
-                            //.positionConvention(position_convention)
+                            .positionConvention(position_convention)
                             .cornerPositionConvention()
                             .context(context)
             );
         }
-
-        //spimdata = OpenersToSpimData.getSpimData(openerSettings);
 
         AbstractSpimData<?> asd = OpenersToSpimData.getSpimData(openerSettings);
 
@@ -125,8 +116,6 @@ public class KheopsHelper {
                 });
 
         int nSources = idToSource.size();
-
-        //Map<Integer, List<SourceAndConverter>> idToSacs = new HashMap<>();
 
         for (int id = 0; id<nSources; id++) {
             SourceAndConverter source = idToSource.get(id);
@@ -252,7 +241,7 @@ public class KheopsHelper {
             Length pz = metaSrc.getPlanePositionZ(seriesSrc, planeSrc);
             if (pz != null) metaDst.setPlanePositionZ(pz, seriesDst, planeDst);
         } else {
-            //System.err.println("Invalid plane "+planeSrc);
+            //No metadata for plane "planeSrc"
         }
     }
 

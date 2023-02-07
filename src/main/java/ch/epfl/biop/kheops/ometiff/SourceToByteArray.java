@@ -24,14 +24,28 @@ package ch.epfl.biop.kheops.ometiff;
 
 import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.type.Type;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.integer.GenericByteType;
 import net.imglib2.type.numeric.integer.GenericShortType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 
+import java.util.HashSet;
+import java.util.Set;
+
 public class SourceToByteArray {
+
+	public static <T> boolean validPixelType(T t) {
+		Set<Class<? extends Type<?>>> validClasses = new HashSet<>();
+		validClasses.add(UnsignedByteType.class);
+		validClasses.add(UnsignedShortType.class);
+		validClasses.add(ARGBType.class);
+		//validClasses.add(FloatType.class); // not done yet
+		return validClasses.contains(t.getClass());
+	}
 
 	public static <T> byte[] raiToByteArray(RandomAccessibleInterval<T> rai,
 		T pixelInstance)
