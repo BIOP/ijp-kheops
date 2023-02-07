@@ -50,6 +50,7 @@ import ome.xml.meta.MetadataConverter;
 import ome.xml.model.enums.DimensionOrder;
 import ome.xml.model.enums.PixelType;
 import ome.xml.model.primitives.Color;
+import ome.xml.model.primitives.NonNegativeInteger;
 import ome.xml.model.primitives.PositiveInteger;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.task.Task;
@@ -531,7 +532,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					for (int c = 0; c < sizeC; c++) {
 						for (int z = 0; z < sizeZ; z++) {
 							int plane = t * sizeZ * sizeC + c * sizeZ + z;
-							/*if (r == 0) {
+							if (r == 0) {
 								int oriC = range.getRangeC().get(c);
 								int oriZ = range.getRangeZ().get(z);
 								int oriT = range.getRangeT().get(t);
@@ -540,7 +541,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 								omeMeta.setPlaneTheZ(new NonNegativeInteger(z), dstSeries, plane);
 								omeMeta.setPlaneTheT(new NonNegativeInteger(t), dstSeries, plane);
 								KheopsHelper.transferPlaneMeta(oriMetadata, oriMetaDataSeries, oriPlane, omeMeta, dstSeries, plane);
-							}*/
+							}
 							for (int y = 0; y < nYTiles; y++) {
 								for (int x = 0; x < nXTiles; x++) {
 									long startX = x * tileX;

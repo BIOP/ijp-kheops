@@ -208,7 +208,7 @@ public class KheopsHelper {
         metaDst.setPixelsPhysicalSizeY(metaSrc.getPixelsPhysicalSizeY(seriesSrc), seriesDst);
         metaDst.setPixelsPhysicalSizeZ(metaSrc.getPixelsPhysicalSizeZ(seriesSrc), seriesDst);
         metaDst.setPixelsTimeIncrement(metaSrc.getPixelsTimeIncrement(seriesSrc), seriesDst);
-        metaDst.setPixelsDimensionOrder(metaSrc.getPixelsDimensionOrder(seriesSrc), seriesDst);
+        //metaDst.setPixelsDimensionOrder(metaSrc.getPixelsDimensionOrder(seriesSrc), seriesDst);
         //metaDst.setStageLabelName(metaSrc.getStageLabelName(seriesSrc), seriesDst);
         //metaDst.setStageLabelX(metaSrc.getStageLabelX(seriesSrc), seriesDst);
         //metaDst.setStageLabelY(metaSrc.getStageLabelY(seriesSrc), seriesDst);
