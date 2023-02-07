@@ -55,7 +55,7 @@ If you need to convert several files, this is the preferred command. It can be v
 This command converts the currently opened Image to a pyramidal ome.tiff file. Contrary to the file conversion commands, the image will not be tiled.
 
 ## Kheops - Read Documentation ...
-You arrive on this page.
+You arrive at this page.
 
 ## Macro Language Code Example
 
@@ -85,11 +85,11 @@ We measured the conversion performance for a few test images between these metho
 
 The test file `Fibroblasts-007.lif` is a 4.18Gb uncompressed image (4096 x 4096 pixels, 4 channels, 67 slices, 8 bits). Four resolution levels are computed with a factor 2 between scales (1 2 4 8), with lzw compression.
 
-File Size | #Input files | # Output files | Method | Downsampling Method | Run time | Effective speed (Mo/s) 
---- | --- | --- | --- | --- | --- | ---
-4.18 GB |1|1| **Kheops** | Average | 133s | **32.2 Mo/s**
-4.18 GB |1|1| Glencoe | NN | 41s | 104.4 Mo/s
-4.18 GB |1|1| Kheops deprecated (~bftools)  | NN | 142s | 30.1 Mo/s
+| File Size | #Input files | # Output files | Method                       | Downsampling Method | Run time | Effective speed (Mo/s) | 
+|-----------|--------------|----------------|------------------------------|---------------------|----------|------------------------|
+| 4.18 GB   | 1            | 1              | **Kheops**                   | Average             | 133s     | **32.2 Mo/s**          |
+| 4.18 GB   | 1            | 1              | Glencoe                      | NN                  | 41s      | 104.4 Mo/s             |
+| 4.18 GB   | 1            | 1              | Kheops deprecated (~bftools) | NN                  | 142s     | 30.1 Mo/s              |
 
 The single writer thread writing to SSD is the limiting factor for Kheops and Bftools.
 

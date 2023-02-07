@@ -93,7 +93,7 @@ public class KheopsBatchCommand implements Command {
     @Parameter(label="Z Voxel size in micrometer", style="format:0.000")
     double vox_size_z;
 
-    Set<String> paths = new HashSet<>();
+    final Set<String> paths = new HashSet<>();
     public static Consumer<String> logger = IJ::log;
 
     @Parameter

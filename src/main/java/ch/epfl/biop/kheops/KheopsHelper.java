@@ -98,7 +98,7 @@ public class KheopsHelper {
         OpenersImageLoader loader = ((OpenersImageLoader)(asd.getSequenceDescription().getImgLoader()));
         info.readerPool = (ResourcePool<IFormatReader>) loader.openers.get(0).getPixelReader();
 
-        idToSource.keySet().stream()
+        idToSource.keySet()
                 .forEach(id -> {
                     BasicViewSetup bvs = asd.getSequenceDescription().getViewSetups().get(id);
                     SeriesIndex si = bvs.getAttribute(SeriesIndex.class);

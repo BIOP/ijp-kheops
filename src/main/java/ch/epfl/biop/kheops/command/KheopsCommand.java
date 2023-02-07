@@ -184,7 +184,7 @@ public class KheopsCommand implements Command {
 
             Stream<Integer> idStream = series.stream();
 
-            if (process_series_in_parallel) idStream.parallel();
+            if (process_series_in_parallel) idStream = idStream.parallel();
 
             final boolean parallelProcess = process_series_in_parallel;
 

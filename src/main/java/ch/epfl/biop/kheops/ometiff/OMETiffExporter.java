@@ -225,7 +225,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			tempTileSizeX = width;
 		}
 		if (height<=writerSettings.tileY) {
-			tempTileSizeX = height;
+			tempTileSizeY = height;
 		}
 		// Tile size should be a multiple of 16 for TIFF
 		this.tileX = tempTileSizeX<16?16:Math.round((float)tempTileSizeX / 16.0F) * 16;

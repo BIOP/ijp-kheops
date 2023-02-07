@@ -31,7 +31,7 @@ import java.util.stream.IntStream;
 /**
  * For each dimension, a String specifies
  * what indexes are selected. Indexes are 0-based The following syntax is
- * supported: - a comma "," separates independent blocks - a semi colon ":"
+ * supported: - a comma "," separates independent blocks - a semicolon ":"
  * indicates a range, with bounds included, 0:4 will select 0, 1, 2, 3 and 4 -
  * two semicolons "x:y:z" can serve to indicate a step size. For instance "0:2:4"
  * will select 0,2 and 4 the step is added to the left argument. So "0:2:5" will
@@ -210,7 +210,7 @@ public class IntRangeParser {
 			System.out.println("Testing " + expression + " with length = " + length);
 			List<Integer> out = new IntRangeParser(expression).get(length);
 			if (out.size() < maxDisplayed) {
-				out.stream().forEach((i) -> System.out.print(i + ","));
+				out.forEach((i) -> System.out.print(i + ","));
 				System.out.println();
 			}
 			else {
