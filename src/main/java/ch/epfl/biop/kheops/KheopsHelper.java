@@ -252,7 +252,7 @@ public class KheopsHelper {
             Length pz = metaSrc.getPlanePositionZ(seriesSrc, planeSrc);
             if (pz != null) metaDst.setPlanePositionZ(pz, seriesDst, planeDst);
         } else {
-            System.err.println("Invalid plane "+planeSrc);
+            //System.err.println("Invalid plane "+planeSrc);
         }
     }
 

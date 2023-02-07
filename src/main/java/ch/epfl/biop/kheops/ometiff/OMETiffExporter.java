@@ -704,7 +704,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				public DataBuilder<T> put(int channel, Source<T> source) throws UnsupportedOperationException {
 					int t = 0;
 					while (source.isPresent(t)) {
-						put3DRAI(channel, t, source.getSource(t,0));
+						putXYZRAI(channel, t, source.getSource(t,0));
 						t++;
 					}
 					return this;
@@ -726,18 +726,20 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					return this;
 				}
 
-				public DataBuilder<T> put3DRAI(int channel, int timepoint, RandomAccessibleInterval<T> rai) throws UnsupportedOperationException {
+				public DataBuilder<T> putXYZRAI(int channel, int timepoint, RandomAccessibleInterval<T> rai) throws UnsupportedOperationException {
+					if (rai.numDimensions()==2) {
+						rai = Views.addDimension(rai,0,0);
+					}
 					validate(channel, timepoint);
 					validate(rai);
 					ctToRAI.get(channel).put(timepoint, rai);
 					return this;
 				}
 
-				public DataBuilder<T> put3DRAI(RandomAccessibleInterval<T> rai) throws UnsupportedOperationException {
-					put3DRAI(0,0,rai);
+				public DataBuilder<T> putXYZRAI(RandomAccessibleInterval<T> rai) throws UnsupportedOperationException {
+					putXYZRAI(0,0,rai);
 					return this;
 				}
-
 
 				public MetaData.MetaDataBuilder defineMetaData(String imageName) { // next step
 					if (nChannels<1) {
@@ -925,19 +927,21 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 				public MetaDataBuilder voxelPhysicalSize(Length physicalSizeX, Length physicalSizeY, Length physicalSizeZ) {
 					omeMeta.setPixelsPhysicalSizeX(physicalSizeX,series);
-					omeMeta.setPixelsPhysicalSizeX(physicalSizeY,series);
+					omeMeta.setPixelsPhysicalSizeY(physicalSizeY,series);
 					omeMeta.setPixelsPhysicalSizeZ(physicalSizeZ, series);
 					return this;
 				}
 
 				public MetaDataBuilder voxelPhysicalSizeMicrometer(double physicalSizeXInMicrometer, double physicalSizeYInMicrometer, double physicalSizeZInMicrometer) {
-					return voxelPhysicalSize(new Length(physicalSizeXInMicrometer, UNITS.MICROMETER),
+					return voxelPhysicalSize(
+							new Length(physicalSizeXInMicrometer, UNITS.MICROMETER),
 							new Length(physicalSizeYInMicrometer, UNITS.MICROMETER),
 							new Length(physicalSizeZInMicrometer, UNITS.MICROMETER));
 				}
 
 				public MetaDataBuilder voxelPhysicalSizeMillimeter(double physicalSizeXInMillimeter, double physicalSizeYInMillimeter, double physicalSizeZInMillimeter) {
-					return voxelPhysicalSize(new Length(physicalSizeXInMillimeter, UNITS.MILLIMETER),
+					return voxelPhysicalSize(
+							new Length(physicalSizeXInMillimeter, UNITS.MILLIMETER),
 							new Length(physicalSizeYInMillimeter, UNITS.MILLIMETER),
 							new Length(physicalSizeZInMillimeter, UNITS.MILLIMETER));
 				}
@@ -960,8 +964,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			final public String rangeZ;
 			final public String rangeT;
 			final public String path;
-			final public int tileX; // = no tiling
-			final public int tileY; // = no tiling
+			final public int tileX;
+			final public int tileY;
 			final public String compression;
 			final public boolean compressTempFiles;
 			final public int maxTilesInQueue;
