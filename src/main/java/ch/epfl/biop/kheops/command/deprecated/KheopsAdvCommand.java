@@ -26,7 +26,6 @@ import loci.common.DebugTools;
 import loci.formats.FormatException;
 import loci.formats.ImageWriter;
 import loci.formats.tools.ImageConverter;
-import net.imagej.ImageJ;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.scijava.command.Command;
@@ -43,13 +42,11 @@ import java.util.function.Consumer;
 import static org.scijava.ItemVisibility.MESSAGE;
 
 /**
- * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
- * The pom file of this project is customized for the PTBIOP Organization (biop.epfl.ch)
- * <p>
- * The code here is opening the biop website. The command can be tested in the java DummyCommandTest class.
- * </p>
+ * SciJava facade of the Bio-Formats {@link ImageConverter}, with more advanced parameters than
+ * {@link KheopsSimpleCommand}
  */
 
+@SuppressWarnings("CanBeFinal")
 @Deprecated
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>(Deprecated) Kheops - Adv. Convert File to Pyramidal OME")
 public class KheopsAdvCommand implements Command {
@@ -81,7 +78,7 @@ public class KheopsAdvCommand implements Command {
     @Parameter(label="Pyramid level downsampling factor")
     int pyramidScale=4;
 
-    public static Consumer<String> logger = (str) -> IJ.log(str);
+    public static Consumer<String> logger = IJ::log;
 
     @Override
     public void run() {
@@ -94,7 +91,7 @@ public class KheopsAdvCommand implements Command {
             String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
             File output_path;
 
-            Boolean isOutputNull = false;
+            boolean isOutputNull = false;
             if ((output_dir == null) || (output_dir.toString().equals(""))) {
                 isOutputNull = true;
                 File parent_dir = new File(input_path.getParent());
@@ -134,13 +131,11 @@ public class KheopsAdvCommand implements Command {
                 } else {
                     logger.accept("Jobs Done !");
                 }
-            } catch (FormatException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
+            } catch (FormatException | IOException e) {
                 e.printStackTrace();
             }
 
-            // workaround for batch
+        // workaround for batch
             if (isOutputNull) {
                 output_dir = null;
             }
@@ -151,21 +146,5 @@ public class KheopsAdvCommand implements Command {
         logger.accept(input_path.getName()+"\t OME TIFF conversion (Deprecated Kheops Adv. Command) \t Run time=\t"+(timeElapsed/1000)+"\t s");
 
     }
-
-    /**
-     * This main function serves for development purposes.
-     * It allows you to run the plugin immediately out of
-     * your integrated development environment (IDE).
-     *
-     * @param args whatever, it's ignored
-     * @throws Exception thrown during runtime
-     */
-    public static void main(final String... args) throws Exception {
-        // create the ImageJ application context with all available services
-        final ImageJ ij = new ImageJ();
-        ij.ui().showUI();
-        ij.command().run(KheopsAdvCommand.class, true);
-    }
-
 
 }

@@ -29,11 +29,11 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
- * TODO : all of this below is a wish... For each dimension, a String specifies
+ * For each dimension, a String specifies
  * what indexes are selected. Indexes are 0-based The following syntax is
- * supported: - a comma "," separates independent blocks - a semi colon ":"
+ * supported: - a comma "," separates independent blocks - a semicolon ":"
  * indicates a range, with bounds included, 0:4 will select 0, 1, 2, 3 and 4 -
- * two semi colons "::" can serve to indicate a step size. For instance "0:2:4"
+ * two semicolons "x:y:z" can serve to indicate a step size. For instance "0:2:4"
  * will select 0,2 and 4 the step is added to the left argument. So "0:2:5" will
  * contain 0,2,4 and not 1,3,5 - 'end' indicates the index of the last element
  * of the array some arithmetic can be performed on the indexes ( + - / * ) We
@@ -86,11 +86,7 @@ public class IntRangeParser {
 				int endInclusive = (int) cvt(params[2], length);
 				double step = cvtDouble(params[1], length);
 				if (step == 0) {
-					// if (startInclusive==endInclusive) {
-					// list.add(startInclusive); // Weird edge case
-					// } else {
 					throw new Exception("Error step size is zero.");
-					// }
 				}
 				else {
 					if ((step > 0) && (endInclusive < startInclusive)) {
@@ -107,7 +103,6 @@ public class IntRangeParser {
 						for (double index = startInclusive; index <= endInclusive; index +=
 							step)
 						{
-							// System.out.println(index);
 							list.add((int) index);
 						}
 					}
@@ -115,7 +110,6 @@ public class IntRangeParser {
 						for (double index = startInclusive; index >= endInclusive; index +=
 							step)
 						{
-							// System.out.println(index);
 							list.add((int) index);
 						}
 					}
@@ -144,8 +138,8 @@ public class IntRangeParser {
 	// convert argument to value : if the value is negative, then subtract to the
 	// end
 
-	static double cvt(String arg, int length) throws Exception {
-		double value = Double.valueOf(arg);
+	static double cvt(String arg, int length) {
+		double value = Double.parseDouble(arg);
 		if (value < 0) {
 			value = length + value;
 		}
@@ -153,8 +147,8 @@ public class IntRangeParser {
 	}
 
 	// convert argument to value : let it be negative for step size
-	static double cvtDouble(String arg, int length) throws Exception {
-		return Double.valueOf(arg);
+	static double cvtDouble(String arg, int length) {
+		return Double.parseDouble(arg);
 	}
 
 	/**
@@ -166,43 +160,39 @@ public class IntRangeParser {
 		return expression;
 	}
 
-	public static void main(String... args) throws Exception {
+	public static void main(String... args) {
 		// A few examples
 		int maxDisplay = 200;
 
-		TestExpression("", 0, maxDisplay); // Throw error : out of bounds
-		TestExpression("", 1, maxDisplay); // Throw error : out of bounds
-		TestExpression("", 10, maxDisplay); // Throw error : out of bounds
+		TestExpression("", 0, maxDisplay);
+		TestExpression("", 1, maxDisplay);
+		TestExpression("", 10, maxDisplay);
 
-		TestExpression(null, 0, maxDisplay); // Throw error : out of bounds
-		TestExpression(null, 1, maxDisplay); // Throw error : out of bounds
-		TestExpression(null, 10, maxDisplay); // Throw error : out of bounds
+		TestExpression(null, 0, maxDisplay);
+		TestExpression(null, 1, maxDisplay);
+		TestExpression(null, 10, maxDisplay);
 
-		TestExpression("0", 0, maxDisplay); // Throw error : out of bounds
-		TestExpression("0", 1, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:0", 0, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:1", 1, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:0", 1, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:-1", 1, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:-1", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:9", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:2:-1", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:2:9", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("-1:-2:0", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("9:-2:0", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("-1:-1:0", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("9:-1:0", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:0.5:-1", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:0.5:9", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("0:0.5:9,9", 10, maxDisplay); // Throw error : to duplicate
-																									// last element
-		TestExpression("-1:-0.5:0", 10, maxDisplay); // Throw error : out of bounds
-		TestExpression("9:-0.5:0", 10, maxDisplay); // Throw error : out of bounds
-
-		TestExpression("0:0.5:-1,0:0.5:9", 10, maxDisplay); // Throw error : out of
-																												// bounds
-		TestExpression("-1:-0.5:0,9:-0.5:0", 10, maxDisplay); // Throw error : out
-																													// of bounds
+		TestExpression("0", 0, maxDisplay);
+		TestExpression("0", 1, maxDisplay);
+		TestExpression("0:0", 0, maxDisplay);
+		TestExpression("0:1", 1, maxDisplay);
+		TestExpression("0:0", 1, maxDisplay);
+		TestExpression("0:-1", 1, maxDisplay);
+		TestExpression("0:-1", 10, maxDisplay);
+		TestExpression("0:9", 10, maxDisplay);
+		TestExpression("0:2:-1", 10, maxDisplay);
+		TestExpression("0:2:9", 10, maxDisplay);
+		TestExpression("-1:-2:0", 10, maxDisplay);
+		TestExpression("9:-2:0", 10, maxDisplay);
+		TestExpression("-1:-1:0", 10, maxDisplay);
+		TestExpression("9:-1:0", 10, maxDisplay);
+		TestExpression("0:0.5:-1", 10, maxDisplay);
+		TestExpression("0:0.5:9", 10, maxDisplay);
+		TestExpression("0:0.5:9,9", 10, maxDisplay);
+		TestExpression("-1:-0.5:0", 10, maxDisplay);
+		TestExpression("9:-0.5:0", 10, maxDisplay);
+		TestExpression("0:0.5:-1,0:0.5:9", 10, maxDisplay);
+		TestExpression("-1:-0.5:0,9:-0.5:0", 10, maxDisplay);
 
 	}
 
@@ -211,7 +201,7 @@ public class IntRangeParser {
 	 * 
 	 * @param expression expression
 	 * @param length length of the array which is being 'sliced'
-	 * @param maxDisplayed I don t know
+	 * @param maxDisplayed I don't know
 	 */
 	public static void TestExpression(String expression, int length,
 		int maxDisplayed)
@@ -220,7 +210,7 @@ public class IntRangeParser {
 			System.out.println("Testing " + expression + " with length = " + length);
 			List<Integer> out = new IntRangeParser(expression).get(length);
 			if (out.size() < maxDisplayed) {
-				out.stream().forEach((i) -> System.out.print(i + ","));
+				out.forEach((i) -> System.out.print(i + ","));
 				System.out.println();
 			}
 			else {

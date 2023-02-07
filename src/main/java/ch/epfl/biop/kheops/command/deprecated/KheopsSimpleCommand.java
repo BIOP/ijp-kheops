@@ -42,13 +42,10 @@ import java.time.Instant;
 import java.util.function.Consumer;
 
 /**
- * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
- * The pom file of this project is customized for the PTBIOP Organization (biop.epfl.ch)
- * <p>
- * The code here is opening the biop website. The command can be tested in the java DummyCommandTest class.
- * </p>
+ * Simple SciJava facade of the Bio-Formats {@link ImageConverter}
  */
 
+@SuppressWarnings("CanBeFinal")
 @Deprecated
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>(Deprecated) Kheops - No Param. Convert File to Pyramidal OME  ")
 public class KheopsSimpleCommand implements Command {
@@ -56,7 +53,7 @@ public class KheopsSimpleCommand implements Command {
     @Parameter(label = "Select an input file (required)", style = "open")
     File input_path;
 
-    public static Consumer<String> logger = (str) -> IJ.log(str);
+    public static Consumer<String> logger = IJ::log;
 
     @Override
     public void run() {
@@ -107,9 +104,7 @@ public class KheopsSimpleCommand implements Command {
                 logger.accept("Jobs Done !");
             }
 
-        } catch (FormatException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
+        } catch (FormatException | IOException e) {
             e.printStackTrace();
         }
 

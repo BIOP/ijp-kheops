@@ -146,10 +146,8 @@ public class AverageImageScaler implements IImageScaler {
 					// |m|n|o|p|
 					// ---------
 					for (int rgb = 0; rgb < pixelChannels; rgb++) {
-						for (int b = 0; b < bytesPerPixel; b++) {
-							outBuf[bytesPerPixel * (destOffset * pixelChannels + rgb) + b] =
-								srcImage[bytesPerPixel * (srcOffset * pixelChannels + rgb) + b];
-						}
+						if (bytesPerPixel >= 0)
+							System.arraycopy(srcImage, bytesPerPixel * (srcOffset * pixelChannels + rgb) + 0, outBuf, bytesPerPixel * (destOffset * pixelChannels + rgb) + 0, bytesPerPixel);
 					}
 					destOffset++;
 					srcOffset += xd;

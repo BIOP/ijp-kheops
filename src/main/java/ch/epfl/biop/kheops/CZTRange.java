@@ -96,7 +96,7 @@ public class CZTRange {
 	 * @return the total number of planes to expect from this range
 	 */
 	public long getTotalPlanes() {
-		return rangeC.size() * rangeZ.size() * rangeT.size();
+		return (long) rangeC.size() * (long) rangeZ.size() * (long) rangeT.size();
 	}
 
 	public static Builder builder() {
