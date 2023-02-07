@@ -171,7 +171,7 @@ public class SourceAndConverterFromSpimDataCreator
 
     /**
      * Creates ARGB converter from a RealTyped sourceandconverter.
-     * Supports Volatile RealTyped or non volatile
+     * Supports Volatile RealTyped or non-volatile
      * @param <T> realtype class
      * @param type a pixel of type T
      * @return a suited converter
@@ -187,7 +187,7 @@ public class SourceAndConverterFromSpimDataCreator
 
     /**
      * Creates ARGB converter from a RealTyped sourceandconverter.
-     * Supports Volatile ARGBType or non volatile
+     * Supports Volatile ARGBType or non-volatile
      * @param source source
      * @return a compatible converter
      */

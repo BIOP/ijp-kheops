@@ -29,7 +29,6 @@ import loci.formats.meta.IMetadata;
 import loci.formats.meta.IPyramidStore;
 import loci.formats.out.PyramidOMETiffWriter;
 import loci.formats.tiff.IFD;
-import net.imglib2.view.Views;
 import ome.units.UNITS;
 import ome.units.quantity.Length;
 import ome.units.unit.Unit;
@@ -45,7 +44,7 @@ import java.nio.ByteBuffer;
 
 public class ImagePlusToOMETiff {
 
-    private static Logger logger = LoggerFactory.getLogger(ImagePlusToOMETiff.class);
+    private static final Logger logger = LoggerFactory.getLogger(ImagePlusToOMETiff.class);
 
     /**
      * Static utility class to convert an ImagePlus as a OME-TIFF multiresolution file
@@ -152,7 +151,7 @@ public class ImagePlusToOMETiff {
             omeMeta.setPlanePositionX(new Length(Math.abs(cal.xOrigin*cal.pixelWidth), unit),0,0);
             omeMeta.setPlanePositionY(new Length(Math.abs(cal.yOrigin*cal.pixelHeight), unit),0,0);
             omeMeta.setPlanePositionZ(new Length(Math.abs(cal.zOrigin*cal.pixelDepth), unit),0,0);
-        };
+        }
 
         // setup resolutions
         for (int i= 0;i<resolutions-1;i++) {

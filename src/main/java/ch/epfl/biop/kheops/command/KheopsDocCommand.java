@@ -29,14 +29,6 @@ import org.scijava.plugin.Plugin;
 import java.io.IOException;
 import java.net.URL;
 
-/**
- * This example illustrates how to create an ImageJ 2 {@link Command} plugin.
- * The pom file of this project is customized for the PTBIOP Organization (biop.epfl.ch)
- * <p>
- * The code here is opening the biop website. The command can be tested in the java DummyCommandTest class.
- * </p>
- */
-
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Read Documentation...")
 public class KheopsDocCommand implements Command {
 
@@ -45,7 +37,6 @@ public class KheopsDocCommand implements Command {
 
     @Override
     public void run() {
-
         try {
             // url : go.epfl.ch/ijp-kheops
             ps.open(new URL("https://github.com/BIOP/ijp-kheops"));
