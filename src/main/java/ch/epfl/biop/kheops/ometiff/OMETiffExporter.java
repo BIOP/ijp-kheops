@@ -68,7 +68,7 @@ import java.util.function.Function;
 import static ch.epfl.biop.kheops.ometiff.SourceToByteArray.validPixelType;
 
 /**
- * Exports a structure of {@link RandomAccessibleInterval<T>} into a OME-TIFF file,
+ * Exports a structure of {@link RandomAccessibleInterval} into a OME-TIFF file,
  * potentially multiresolution. To build this structure and create the export, one should use the
  * {@link OMETiffExporterBuilder} builder, which validates the structure
  * and allows to set OME metadata.
