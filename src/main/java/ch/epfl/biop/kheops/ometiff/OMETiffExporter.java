@@ -8,12 +8,12 @@
  * it under the terms of the GNU General Public License as
  * published by the Free Software Foundation, either version 2 of the
  * License, or (at your option) any later version.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public
  * License along with this program.  If not, see
  * <http://www.gnu.org/licenses/gpl-2.0.html>.
@@ -254,7 +254,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		// Initialise transient variables for exporting
 		writtenTiles.set(0);
 		tileIterator = new TileIterator(nResolutionLevels, sizeT, sizeC, sizeZ,
-			resToNY, resToNX, writerSettings.maxTilesInQueue);
+				resToNY, resToNX, writerSettings.maxTilesInQueue);
 		computedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1); // should be enough for avoiding overlap of hash
 
 	}
@@ -659,7 +659,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 	private String getFileName(int r) {
 		return FilenameUtils.removeExtension(file.getAbsolutePath()) + "_lvl_" + r +
-			".ome.tiff";
+				".ome.tiff";
 	}
 
 	public static OMETiffExporterBuilder.Data.DataBuilder builder() {
@@ -691,17 +691,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			return new Data.DataBuilder();
 		}
 		public static class Data<T> {
-
-			/**
-			 * Supported pixel type:
-			 * - {@link UnsignedByteType}
-			 * - {@link UnsignedShortType}
-			 * - {@link ARGBType}
-			 * - {@link FloatType}
-			 * @param t pixel instance
-			 * @return is the pixel type can be exported or not in {@link OMETiffExporter}
-			 * @param <T> pixel type class
-			 */
 
 			protected final int pixelsSizeX, pixelsSizeY, pixelsSizeZ, pixelsSizeC, pixelsSizeT;
 			protected final Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI;
@@ -790,12 +779,12 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				/**
 				 * Puts a 2D or 3D {@link RandomAccessibleInterval} at the exported channel and timepoint defined in the argument.
 				 * In case a 2D rai is put, it is assumed to be a single plane, and a third dimension of size 1
-				 * is added to the RAI.
+				 * is added to the RAI. Throws UnsupportedOperationException if the pixel type is unsupported, if the data is already defined, etc.
 				 * @param channel index of the channel in the exported image (0-based)
 				 * @param timepoint index of the timepoint in the exported image (0-based)
 				 * @param rai 2D or 3D image
 				 * @return data builder
-				 * @throws UnsupportedOperationException, if the pixel type is unsupported, if the data is already defined, etc.
+				 * @throws UnsupportedOperationException
 				 */
 				public DataBuilder<T> putXYZRAI(int channel, int timepoint, RandomAccessibleInterval<T> rai) throws UnsupportedOperationException {
 					if (rai.numDimensions()==2) {
