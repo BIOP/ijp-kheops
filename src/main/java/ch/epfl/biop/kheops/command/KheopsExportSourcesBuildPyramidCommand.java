@@ -118,7 +118,7 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
         }
 
         try {
-            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
+            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
                     .put(sacs)
                     .defineMetaData(FilenameUtils.removeExtension(imageName))
                     .putMetadataFromSources(sacs, unit);

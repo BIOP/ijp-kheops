@@ -138,8 +138,8 @@ public class IntRangeParser {
 	// convert argument to value : if the value is negative, then subtract to the
 	// end
 
-	static double cvt(String arg, int length) throws Exception {
-		double value = Double.valueOf(arg);
+	static double cvt(String arg, int length) {
+		double value = Double.parseDouble(arg);
 		if (value < 0) {
 			value = length + value;
 		}
@@ -147,8 +147,8 @@ public class IntRangeParser {
 	}
 
 	// convert argument to value : let it be negative for step size
-	static double cvtDouble(String arg, int length) throws Exception {
-		return Double.valueOf(arg);
+	static double cvtDouble(String arg, int length) {
+		return Double.parseDouble(arg);
 	}
 
 	/**

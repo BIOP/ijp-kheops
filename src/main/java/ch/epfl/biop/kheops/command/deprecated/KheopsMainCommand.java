@@ -23,16 +23,18 @@ package ch.epfl.biop.kheops.command.deprecated;
 
 import ij.IJ;
 import loci.common.DebugTools;
-import loci.formats.*;
+import loci.formats.FormatException;
+import loci.formats.ImageWriter;
 import loci.formats.tools.ImageConverter;
-import net.imagej.ImageJ;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
 import org.scijava.plugin.Plugin;
 
-import java.io.*;
+
+import java.io.File;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.Consumer;
@@ -41,6 +43,7 @@ import java.util.function.Consumer;
  * SciJava facade of the Bio-Formats {@link ImageConverter}
  */
 
+@SuppressWarnings("CanBeFinal")
 @Deprecated
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>(Deprecated) Kheops - Convert File to Pyramidal OME")
 public class KheopsMainCommand implements Command {
@@ -63,7 +66,7 @@ public class KheopsMainCommand implements Command {
     @Parameter (label="Save as BIG  ome.tiff?")
     boolean bigtiff=true;
 
-    public static Consumer<String> logger = (str) -> IJ.log(str);
+    public static Consumer<String> logger = IJ::log;
 
     @Override
     public void run() {
@@ -76,7 +79,7 @@ public class KheopsMainCommand implements Command {
         String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
         File output_path;
 
-        Boolean isOutputNull = false;
+        boolean isOutputNull = false;
         if ((output_dir == null) || (output_dir.toString().equals(""))) {
             isOutputNull = true;
             File parent_dir = new File(input_path.getParent());
@@ -106,9 +109,7 @@ public class KheopsMainCommand implements Command {
             } else {
                 logger.accept("Jobs Done !");
             }
-        } catch (FormatException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
+        } catch (FormatException | IOException e) {
             e.printStackTrace();
         }
 

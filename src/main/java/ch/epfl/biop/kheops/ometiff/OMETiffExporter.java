@@ -35,7 +35,6 @@ import loci.formats.out.OMETiffWriter;
 import loci.formats.out.PyramidOMETiffWriter;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.type.Type;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
@@ -61,9 +60,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
@@ -318,7 +315,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		}
 		else {
 			// Wait for the previous resolution level to be written !
-			while ((r != currentLevelWritten)&&(isCanceled==false)) {
+			while ((r != currentLevelWritten)&&(!isCanceled)) {
 				synchronized (tileLock) {
 					tileLock.wait();
 				}
@@ -665,8 +662,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			".ome.tiff";
 	}
 
-	public static OMETiffExporterBuilder builder() {
-		return new OMETiffExporterBuilder();
+	public static OMETiffExporterBuilder.Data.DataBuilder builder() {
+		return OMETiffExporterBuilder.defineData();
 	}
 
 	/**
@@ -723,14 +720,14 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 			/**
 			 * Builder for raw pixel data - single 5D image XYZCT supported.
-			 * See {@link Data#validPixelType(Object)} to see which pixel types
+			 * See {@link SourceToByteArray#validPixelType(Object)} to see which pixel types
 			 * are supported.
 			 * @param <T> pixel type
 			 */
 			public static class DataBuilder<T> {
 				private int nPixelX = -1, nPixelY = -1, nPixelZ = -1;
 				private int nChannels = -1, nTimePoints = -1;
-				private Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI = new HashMap<>();
+				final private Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI = new HashMap<>();
 				T pixelInstance;
 
 				/**

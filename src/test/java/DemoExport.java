@@ -31,7 +31,6 @@ public class DemoExport {
             String path = "C:\\kheops\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
             System.out.println("Saving "+path);
             OMETiffExporter.builder()
-                    .defineData()
                     .putXYZRAI(img)
                     .putXYZRAI(0,1,img)
                     .defineMetaData("Image")

@@ -53,6 +53,7 @@ import java.util.stream.Stream;
 import static ch.epfl.biop.kheops.KheopsHelper.transferSeriesMeta;
 
 
+@SuppressWarnings("CanBeFinal")
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME TIFF",
         description = "Converts a Bio-Formats readable file to pyramidal OME TIFFs files (one file per series).")
 public class KheopsCommand implements Command {
@@ -92,7 +93,7 @@ public class KheopsCommand implements Command {
     @Parameter(label="Z Voxel size in micrometer", style="format:0.000")
     double vox_size_z;
 
-    public static Consumer<String> logger = (str) -> IJ.log(str);
+    public static Consumer<String> logger = IJ::log;
 
     @Parameter
     TaskService taskService;
@@ -139,9 +140,7 @@ public class KheopsCommand implements Command {
             throw new RuntimeException(e);
         }
 
-        boolean process_series_in_parallel = true;
-
-        if (series.size()==1) process_series_in_parallel = false;
+        boolean process_series_in_parallel = (series.size() != 1);
 
         Map<Integer, String> indexToFilePath = new HashMap<>();
         Set<String> paths = new HashSet<>();
@@ -209,7 +208,7 @@ public class KheopsCommand implements Command {
                         }
 
                         try {
-                            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
+                            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
                                     .put(sources)
                                     .defineMetaData("Image")
                                     .applyOnMeta(meta -> {

@@ -33,6 +33,7 @@ import org.scijava.plugin.Plugin;
 import java.io.File;
 import java.time.Instant;
 
+@SuppressWarnings("CanBeFinal")
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert Image to Pyramidal OME TIFF")
 public class KheopsFromImagePlusCommand implements Command {
 

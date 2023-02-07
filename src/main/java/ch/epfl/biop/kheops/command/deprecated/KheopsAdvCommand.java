@@ -46,6 +46,7 @@ import static org.scijava.ItemVisibility.MESSAGE;
  * {@link KheopsSimpleCommand}
  */
 
+@SuppressWarnings("CanBeFinal")
 @Deprecated
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>(Deprecated) Kheops - Adv. Convert File to Pyramidal OME")
 public class KheopsAdvCommand implements Command {
@@ -77,7 +78,7 @@ public class KheopsAdvCommand implements Command {
     @Parameter(label="Pyramid level downsampling factor")
     int pyramidScale=4;
 
-    public static Consumer<String> logger = (str) -> IJ.log(str);
+    public static Consumer<String> logger = IJ::log;
 
     @Override
     public void run() {
@@ -90,7 +91,7 @@ public class KheopsAdvCommand implements Command {
             String fileNameWithOutExt = FilenameUtils.removeExtension(fileName) + ".ome.tiff";
             File output_path;
 
-            Boolean isOutputNull = false;
+            boolean isOutputNull = false;
             if ((output_dir == null) || (output_dir.toString().equals(""))) {
                 isOutputNull = true;
                 File parent_dir = new File(input_path.getParent());
@@ -130,13 +131,11 @@ public class KheopsAdvCommand implements Command {
                 } else {
                     logger.accept("Jobs Done !");
                 }
-            } catch (FormatException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
+            } catch (FormatException | IOException e) {
                 e.printStackTrace();
             }
 
-            // workaround for batch
+        // workaround for batch
             if (isOutputNull) {
                 output_dir = null;
             }

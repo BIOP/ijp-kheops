@@ -26,11 +26,8 @@ import net.imglib2.Cursor;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.type.Type;
 import net.imglib2.type.numeric.ARGBType;
-import net.imglib2.type.numeric.integer.GenericByteType;
-import net.imglib2.type.numeric.integer.GenericShortType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
-import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 
 import java.util.HashSet;
@@ -54,7 +51,7 @@ public class SourceToByteArray {
 		for (int d = 1; d < rai.numDimensions(); d++) {
 			nBytes *= rai.dimension(d);
 		}
-		if (pixelInstance instanceof GenericByteType) {
+		if (pixelInstance instanceof UnsignedByteType) {
 			Cursor<UnsignedByteType> c = (Cursor<UnsignedByteType>) Views
 				.flatIterable(rai).cursor();
 
@@ -72,7 +69,7 @@ public class SourceToByteArray {
 			}
 			return out;
 		}
-		else if (pixelInstance instanceof GenericShortType) {
+		else if (pixelInstance instanceof UnsignedShortType) {
 			Cursor<UnsignedShortType> c = (Cursor<UnsignedShortType>) Views
 				.flatIterable(rai).cursor();
 

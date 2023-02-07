@@ -89,7 +89,8 @@ public class KheopsHelper {
 
         AbstractSpimData<?> asd = OpenersToSpimData.getSpimData(openerSettings);
 
-        boundSpimDataCache(asd, maxCacheSize*nParallelJobs, nParallelJobs, nParallelJobs);
+        boolean result = boundSpimDataCache(asd, maxCacheSize*nParallelJobs, nParallelJobs, nParallelJobs);
+        if (!result) System.out.println("Warning: could not bound cache of spimdata. The memory may get full.");
 
         Map<Integer, SourceAndConverter> idToSource = new SourceAndConverterFromSpimDataCreator(asd).getSetupIdToSourceAndConverter();
 
@@ -130,11 +131,11 @@ public class KheopsHelper {
     }
 
     public static class SourcesInfo {
-        public Map<Integer, List<SourceAndConverter>> idToSources = new HashMap<>();
-        public Map<Integer, ImageName> idToImageName = new HashMap<>();
-        public Map<Integer, SeriesIndex> idToSeriesIndex = new HashMap<>();
-        public Map<Integer, String> idToChannels = new HashMap<>();
-        public Map<Integer, Integer> seriesToId = new HashMap<>();
+        public final Map<Integer, List<SourceAndConverter>> idToSources = new HashMap<>();
+        public final Map<Integer, ImageName> idToImageName = new HashMap<>();
+        public final Map<Integer, SeriesIndex> idToSeriesIndex = new HashMap<>();
+        public final Map<Integer, String> idToChannels = new HashMap<>();
+        public final Map<Integer, Integer> seriesToId = new HashMap<>();
         public ResourcePool<IFormatReader> readerPool;
     }
 

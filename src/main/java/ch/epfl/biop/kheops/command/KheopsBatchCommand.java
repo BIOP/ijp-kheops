@@ -52,6 +52,7 @@ import java.util.function.Consumer;
 
 import static ch.epfl.biop.kheops.KheopsHelper.transferSeriesMeta;
 
+@SuppressWarnings("CanBeFinal")
 @Plugin(type = Command.class,
         menuPath = "Plugins>BIOP>Kheops>Kheops - Batch Convert Files to Pyramidal OME TIFF",
         description = "Converts in parallel Bio-Formats readable files to pyramidal OME TIFFs files.")
@@ -93,7 +94,7 @@ public class KheopsBatchCommand implements Command {
     double vox_size_z;
 
     Set<String> paths = new HashSet<>();
-    public static Consumer<String> logger = (str) -> IJ.log(str);
+    public static Consumer<String> logger = IJ::log;
 
     @Parameter
     TaskService taskService;
@@ -208,7 +209,7 @@ public class KheopsBatchCommand implements Command {
                                         }
 
                                         try {
-                                            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder().defineData()
+                                            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
                                                     .put(sources)
                                                     //.setReaderPool(sourcesInfo.readerPool, iSeries)
                                                     .defineMetaData("Image")
