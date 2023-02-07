@@ -35,6 +35,9 @@ import loci.formats.out.OMETiffWriter;
 import loci.formats.out.PyramidOMETiffWriter;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
+import net.imglib2.RealPoint;
+import net.imglib2.display.ColorConverter;
+import net.imglib2.realtransform.AffineTransform3D;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
@@ -45,6 +48,7 @@ import ome.codecs.CompressionType;
 import ome.units.UNITS;
 import ome.units.quantity.Length;
 import ome.units.quantity.Time;
+import ome.units.unit.Unit;
 import ome.xml.meta.MetadataConverter;
 import ome.xml.model.enums.DimensionOrder;
 import ome.xml.model.enums.PixelType;
@@ -1080,11 +1084,60 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					return new WriterOptions.WriterOptionsBuilder(new MetaData(this), data);
 				}
 
-				public MetaDataBuilder putMetadataFromSources(SourceAndConverter[] sacs, String unit) {
-					//TODO
-					throw new UnsupportedOperationException("putMetadataFromSources has to be implemented");
-					//return this;
+				public MetaDataBuilder putMetadataFromSources(SourceAndConverter<?>[] sacs, Unit<Length> unit) {
+					Source<?>[] sources = new Source[sacs.length];
+					for (int i = 0; i< sacs.length; i++) {
+						sources[i] = sacs[i].getSpimSource();
+					}
+					putMetadataFromSources(sources, unit);
+
+					// Now, let's put the colors!
+					int sizeC = sources.length;
+					for (int c = 0; c < sizeC; c++) {
+						if (sacs[c].getConverter() instanceof ColorConverter) {
+							int colorCode = ((ColorConverter)sacs[c].getConverter()).getColor().get();
+							int colorRed = ARGBType.red(colorCode);
+							int colorGreen = ARGBType.green(colorCode);
+							int colorBlue = ARGBType.blue(colorCode);
+							int colorAlpha = ARGBType.alpha(colorCode);
+							this.channelColor(c,colorRed, colorGreen, colorBlue, colorAlpha);
+						}
+					}
+
+
+					return this;
 				}
+
+				public MetaDataBuilder putMetadataFromSources(Source<?>[] sources, Unit<Length> unit) {
+
+					// Voxel size
+					AffineTransform3D mat = new AffineTransform3D();
+					Source<?> model = sources[0];
+					model.getSourceTransform(0, 0, mat);
+
+					double[] m = mat.getRowPackedCopy();
+
+					final double[] voxelSizes = new double[3];
+
+					for (int d = 0; d < 3; ++d) {
+						voxelSizes[d] = Math.sqrt(m[d] * m[d] + m[d + 4] * m[d + 4] + m[d + 8] *
+								m[d + 8]);
+					}
+
+					this.voxelPhysicalSize(new Length(voxelSizes[0], unit), new Length(voxelSizes[1], unit),new Length(voxelSizes[2], unit));
+
+					final RealPoint origin = new RealPoint(3);
+					//	Plane position
+					mat.apply(origin, origin);
+
+					this.planePosition(new Length(origin.getDoublePosition(0), unit),
+							new Length(origin.getDoublePosition(1), unit),
+							new Length(origin.getDoublePosition(2), unit),0
+							);
+
+					return this;
+				}
+
 			}
 		}
 		public static class WriterOptions {

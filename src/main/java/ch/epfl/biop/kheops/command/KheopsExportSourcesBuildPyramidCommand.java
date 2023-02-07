@@ -25,6 +25,9 @@ package ch.epfl.biop.kheops.command;
 import bdv.viewer.SourceAndConverter;
 import ch.epfl.biop.kheops.KheopsHelper;
 import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
+import ome.units.UNITS;
+import ome.units.quantity.Length;
+import ome.units.unit.Unit;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.command.Command;
 import org.scijava.log.LogService;
@@ -104,6 +107,16 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
 
     @Override
     public void run() {
+        final Unit<Length> lUnit;
+
+        switch (unit) {
+            case "MILLIMETER": lUnit = UNITS.MILLIMETER; break;
+            case "MICROMETER": lUnit = UNITS.MICROMETER; break;
+            default: logger.error("Unknown unit: "+unit);
+            System.err.println("Unknown unit: "+unit);
+            return;
+        }
+
         Instant start = Instant.now();
 
         List<SourceAndConverter> sources = Arrays.asList(sacs);
@@ -121,7 +134,7 @@ public class KheopsExportSourcesBuildPyramidCommand implements Command {
             OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
                     .put(sacs)
                     .defineMetaData(FilenameUtils.removeExtension(imageName))
-                    .putMetadataFromSources(sacs, unit);
+                    .putMetadataFromSources(sacs, lUnit);
 
             if (override_voxel_size) {
                 builder.voxelPhysicalSizeMicrometer(this.vox_size_xy_um, this.vox_size_xy_um, this.vox_size_z_um);
