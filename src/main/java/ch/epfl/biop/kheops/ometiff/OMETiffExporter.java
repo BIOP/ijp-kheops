@@ -692,17 +692,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		}
 		public static class Data<T> {
 
-			/**
-			 * Supported pixel type:
-			 * - {@link UnsignedByteType}
-			 * - {@link UnsignedShortType}
-			 * - {@link ARGBType}
-			 * - {@link FloatType}
-			 * @param t pixel instance
-			 * @return is the pixel type can be exported or not in {@link OMETiffExporter}
-			 * @param <T> pixel type class
-			 */
-
 			protected final int pixelsSizeX, pixelsSizeY, pixelsSizeZ, pixelsSizeC, pixelsSizeT;
 			protected final Map<Integer, Map<Integer, RandomAccessibleInterval<T>>> ctToRAI;
 
@@ -790,12 +779,12 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				/**
 				 * Puts a 2D or 3D {@link RandomAccessibleInterval} at the exported channel and timepoint defined in the argument.
 				 * In case a 2D rai is put, it is assumed to be a single plane, and a third dimension of size 1
-				 * is added to the RAI.
+				 * is added to the RAI. Throws UnsupportedOperationException if the pixel type is unsupported, if the data is already defined, etc.
 				 * @param channel index of the channel in the exported image (0-based)
 				 * @param timepoint index of the timepoint in the exported image (0-based)
 				 * @param rai 2D or 3D image
 				 * @return data builder
-				 * @throws UnsupportedOperationException, if the pixel type is unsupported, if the data is already defined, etc.
+				 * @throws UnsupportedOperationException
 				 */
 				public DataBuilder<T> putXYZRAI(int channel, int timepoint, RandomAccessibleInterval<T> rai) throws UnsupportedOperationException {
 					if (rai.numDimensions()==2) {

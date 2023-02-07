@@ -28,13 +28,27 @@ import net.imglib2.type.Type;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
 import net.imglib2.type.numeric.integer.UnsignedShortType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 
 import java.util.HashSet;
 import java.util.Set;
 
+/**
+ * The core of the conversion from Imglib2 types to byte arrays.
+ */
 public class SourceToByteArray {
 
+	/**
+	 * Supported pixel type:
+	 * - {@link UnsignedByteType}
+	 * - {@link UnsignedShortType}
+	 * - {@link ARGBType}
+	 * - {@link FloatType}
+	 * @param t pixel instance
+	 * @return is the pixel type can be exported or not in {@link OMETiffExporter}
+	 * @param <T> pixel type class
+	 */
 	public static <T> boolean validPixelType(T t) {
 		Set<Class<? extends Type<?>>> validClasses = new HashSet<>();
 		validClasses.add(UnsignedByteType.class);
