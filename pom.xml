@@ -11,7 +11,7 @@
 
 	<groupId>ch.epfl.biop</groupId>
 	<artifactId>ijp-kheops</artifactId>
-	<version>0.3.6-SNAPSHOT</version>
+	<version>0.3.7-SNAPSHOT</version>
 
 	<name>BIOP Kheops Command</name>
 	<description>IJ2 commands that use bio-formats to create pyramidal ome.tiff</description>
