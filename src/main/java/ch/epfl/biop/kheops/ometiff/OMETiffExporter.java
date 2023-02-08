@@ -781,6 +781,18 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				}
 
 				/**
+				 * Gets the {@link Source} from the {@link SourceAndConverter} then
+				 * calls {@link DataBuilder#put(int, Source)}
+				 * @param source source and converter
+				 * @return data builder
+				 * @throws UnsupportedOperationException
+				 */
+				public DataBuilder<T> put(SourceAndConverter<T> source) throws UnsupportedOperationException {
+					put(0, source.getSpimSource());
+					return this;
+				}
+
+				/**
 				 * Puts a 2D or 3D {@link RandomAccessibleInterval} at the exported channel and timepoint defined in the argument.
 				 * In case a 2D rai is put, it is assumed to be a single plane, and a third dimension of size 1
 				 * is added to the RAI. Throws UnsupportedOperationException if the pixel type is unsupported, if the data is already defined, etc.
@@ -1082,6 +1094,10 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				 */
 				public WriterOptions.WriterOptionsBuilder defineWriteOptions() {
 					return new WriterOptions.WriterOptionsBuilder(new MetaData(this), data);
+				}
+
+				public MetaDataBuilder putMetadataFromSources(SourceAndConverter<?> sac, Unit<Length> unit) {
+					return this.putMetadataFromSources(new SourceAndConverter<?>[]{sac}, unit);
 				}
 
 				public MetaDataBuilder putMetadataFromSources(SourceAndConverter<?>[] sacs, Unit<Length> unit) {
