@@ -191,13 +191,6 @@ public class KheopsExportImagePlusCommand implements Command {
                 }
             }
 
-        sourcesInfo.readerPool.shutDown(reader -> {
-            try {
-                reader.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
         // CODE HERE
         Instant finish = Instant.now();
         long timeElapsed = Duration.between(start, finish).toMillis();

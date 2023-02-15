@@ -176,13 +176,6 @@ public class ImagePlusToOMETiff {
             }
         }
 
-        sourcesInfo.readerPool.shutDown(reader -> {
-            try {
-                reader.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        });
         // CODE HERE
         Instant finish = Instant.now();
         long timeElapsed = Duration.between(start, finish).toMillis();
