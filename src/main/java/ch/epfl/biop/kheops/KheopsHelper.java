@@ -31,8 +31,10 @@ import ch.epfl.biop.bdv.img.ResourcePool;
 import ch.epfl.biop.bdv.img.bioformats.BioFormatsHelper;
 import ch.epfl.biop.bdv.img.bioformats.entity.SeriesIndex;
 import ch.epfl.biop.bdv.img.entity.ImageName;
+import ch.epfl.biop.bdv.img.imageplus.ImagePlusToSpimData;
 import ch.epfl.biop.bdv.img.opener.OpenerSettings;
 import ij.IJ;
+import ij.ImagePlus;
 import loci.formats.IFormatReader;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.generic.sequence.BasicImgLoader;
@@ -244,6 +246,52 @@ public class KheopsHelper {
         } else {
             //No metadata for plane "planeSrc"
         }
+    }
+
+    public static SourcesInfo getSourcesFromImage(ImagePlus image,
+                                                 int maxCacheSize,
+                                                 int nParallelJobs) {
+
+
+        AbstractSpimData<?> asd = ImagePlusToSpimData.getSpimData(image); //OpenersToSpimData.getSpimData(openerSettings);
+
+        boolean result = boundSpimDataCache(asd, maxCacheSize*nParallelJobs, nParallelJobs, nParallelJobs);
+        if (!result) System.out.println("Warning: could not bound cache of spimdata. The memory may get full.");
+
+        Map<Integer, SourceAndConverter> idToSource = new SourceAndConverterFromSpimDataCreator(asd).getSetupIdToSourceAndConverter();
+
+        SourcesInfo info = new SourcesInfo();
+
+        idToSource.keySet()
+                .forEach(id -> {
+                    BasicViewSetup bvs = asd.getSequenceDescription().getViewSetups().get(id);
+                    SeriesIndex si = bvs.getAttribute(SeriesIndex.class);
+                    Channel channel = bvs.getAttribute(Channel.class);
+                    ImageName imageName = bvs.getAttribute(ImageName.class);
+                    if (si!=null) {
+                        info.idToSeriesIndex.put(id, si);
+                        info.idToChannels.put(id, channel.getName());
+                        info.idToImageName.put(id, imageName);
+                        info.seriesToId.put(si.getId(), id);
+                    }
+                    Displaysettings displaysettings = bvs.getAttribute(Displaysettings.class);
+                    if (displaysettings!=null) {
+                        Displaysettings.applyDisplaysettings(idToSource.get(id), displaysettings); // Applies color to sources
+                    }
+                });
+
+        int nSources = idToSource.size();
+
+        for (int id = 0; id<nSources; id++) {
+            SourceAndConverter source = idToSource.get(id);
+            int sn_id = 0;
+            if (!info.idToSources.containsKey(sn_id)) {
+                info.idToSources.put(sn_id, new ArrayList<>());
+            }
+            info.idToSources.get(sn_id).add(source);
+        }
+
+        return info;
     }
 
 }

@@ -45,7 +45,7 @@ import java.util.List;
         menuPath = "Plugins>BigDataViewer-Playground>Sources>Export>Export Sources To OME Tiff (build pyramid)",
         description = "Saves Bdv sources as a multi-channel OME-Tiff file, with multi-resolution levels recomputed " +
                 "from the highest resolution level")
-public class KheopsExportSourcesBuildPyramidCommand implements Command {
+public class KheopsExportSourcesCommand implements Command {
 
     @Parameter(label = "Sources to export")
     public SourceAndConverter[] sacs;
