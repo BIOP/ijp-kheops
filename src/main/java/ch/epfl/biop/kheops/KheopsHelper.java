@@ -122,11 +122,15 @@ public class KheopsHelper {
 
         for (int id = 0; id<nSources; id++) {
             SourceAndConverter source = idToSource.get(id);
-            int sn_id = info.idToSeriesIndex.get(id).getId();
-            if (!info.idToSources.containsKey(sn_id)) {
-                info.idToSources.put(sn_id, new ArrayList<>());
+            if (info.idToSeriesIndex.get(id)!=null) {
+                int sn_id = info.idToSeriesIndex.get(id).getId();
+                if (!info.idToSources.containsKey(sn_id)) {
+                    info.idToSources.put(sn_id, new ArrayList<>());
+                }
+                info.idToSources.get(sn_id).add(source);
+            } else {
+                IJ.log("Id "+id+" will not be exported. Note that 16 bits RGB images are unsupported.");
             }
-            info.idToSources.get(sn_id).add(source);
         }
 
         return info;
