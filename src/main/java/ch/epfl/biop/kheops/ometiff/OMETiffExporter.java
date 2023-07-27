@@ -196,7 +196,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		int iniSizeZ = originalOmeMeta.getPixelsSizeZ(originalSeries).getValue();
 		int iniSizeT = originalOmeMeta.getPixelsSizeT(originalSeries).getValue();
 		int iniSizeC = originalOmeMeta.getPixelsSizeC(originalSeries).getValue();
-		range = CZTRange.builder().setC(writerSettings.rangeC).setT(writerSettings.rangeT).setZ(writerSettings.rangeT).get(isRGB ? 1:iniSizeC, iniSizeZ, iniSizeT);
+		range = CZTRange.builder().setC(writerSettings.rangeC).setT(writerSettings.rangeT).setZ(writerSettings.rangeZ).get(isRGB ? 1:iniSizeC, iniSizeZ, iniSizeT);
 		sizeC = range.getRangeC().size();
 		sizeZ = range.getRangeZ().size();
 		sizeT = range.getRangeT().size();
