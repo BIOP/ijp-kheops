@@ -98,10 +98,25 @@ public class AverageImageScaler implements IImageScaler {
 				offs += bytesPerPixel;
 			}
 			return buffer.array();
-		}
-		else {
+		} else if ((bytesPerPixel == 4)&&floatingPoint) {
+			float fnShifts = (float) nShifts;
+			ByteBuffer buffer = ByteBuffer.allocate(nPix * 4);
+			for (int iPix = 0; iPix < nPix; iPix++) {
+				int v = 0;
+				for (int is = 0; is < nShifts; is++) {
+					int asInt = ((allshifts[is][offs] & 0xFF) << 24)
+							| ((allshifts[is][offs + 1] & 0xFF) << 16)
+							| ((allshifts[is][offs + 2] & 0xFF) << 8)
+							| (allshifts[is][offs + 3] & 0xFF);
+					v += Float.intBitsToFloat(asInt);
+				}
+				buffer.putFloat(v / fnShifts);
+				offs += bytesPerPixel;
+			}
+			return buffer.array();
+		} else {
 			throw new UnsupportedOperationException("Cannot handle pixel type with " +
-				bytesPerPixel + " bytes per pixels. Please contribute!");
+				bytesPerPixel + " bytes per pixels (float = "+floatingPoint+"). Please contribute!");
 		}
 	}
 
@@ -147,7 +162,7 @@ public class AverageImageScaler implements IImageScaler {
 					// ---------
 					for (int rgb = 0; rgb < pixelChannels; rgb++) {
 						if (bytesPerPixel >= 0)
-							System.arraycopy(srcImage, bytesPerPixel * (srcOffset * pixelChannels + rgb) + 0, outBuf, bytesPerPixel * (destOffset * pixelChannels + rgb) + 0, bytesPerPixel);
+							System.arraycopy(srcImage, bytesPerPixel * (srcOffset * pixelChannels + rgb), outBuf, bytesPerPixel * (destOffset * pixelChannels + rgb), bytesPerPixel);
 					}
 					destOffset++;
 					srcOffset += xd;

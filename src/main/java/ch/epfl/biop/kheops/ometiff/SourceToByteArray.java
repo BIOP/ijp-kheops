@@ -54,7 +54,7 @@ public class SourceToByteArray {
 		validClasses.add(UnsignedByteType.class);
 		validClasses.add(UnsignedShortType.class);
 		validClasses.add(ARGBType.class);
-		//validClasses.add(FloatType.class); // not done yet
+		validClasses.add(FloatType.class);
 		return validClasses.contains(t.getClass());
 	}
 
@@ -120,6 +120,22 @@ public class SourceToByteArray {
 				out[i] = (byte) (value >>> 16);
 				out[i + 1] = (byte) (value >>> 8);
 				out[i + 2] = (byte) value;
+			}
+			return out;
+		} else if (pixelInstance instanceof FloatType) {
+			Cursor<FloatType> c = (Cursor<FloatType>) Views.flatIterable(rai).cursor();
+			nBytes *= 4;
+			if (nBytes > Integer.MAX_VALUE) {
+				System.err.println("Too many bytes during export!");
+				return null;
+			}
+			byte[] out = new byte[(int) nBytes];
+			for (int i = 0; i < nBytes; i += 4) {
+				int intBits =  Float.floatToIntBits(c.next().get());
+				out[i] = (byte) (intBits >>> 24);
+				out[i + 1] = (byte) (intBits >>> 16);
+				out[i + 2] = (byte) (intBits >>> 8);
+				out[i + 3] = (byte) intBits;
 			}
 			return out;
 		}
