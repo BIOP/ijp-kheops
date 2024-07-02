@@ -84,7 +84,6 @@ public class KheopsHelper {
                             .readerPoolSize(nParallelJobs)
                             .splitRGBChannels(splitRGB)
                             .positionConvention(position_convention)
-                            .cornerPositionConvention()
                             .context(context)
             );
         }

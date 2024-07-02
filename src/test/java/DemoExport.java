@@ -21,19 +21,27 @@
  */
 import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
 import loci.common.DebugTools;
+import net.imagej.ImageJ;
 import net.imglib2.FinalInterval;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.position.FunctionRandomAccessible;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.view.Views;
+import org.scijava.task.TaskService;
+
+import java.time.Duration;
+import java.time.Instant;
 
 public class DemoExport {
 
     public static void main( String[] args )
     {
+        ImageJ ij = new ImageJ();
+        ij.ui().showUI();
         int sizeInPixelX = 512;
         int sizeInPixelY = 512;
         int tileSize = 512;
+        int nT = 512;
         final FunctionRandomAccessible<ARGBType> checkerboard = new FunctionRandomAccessible<>(
                 2,
                 (location, value) -> {
@@ -49,19 +57,31 @@ public class DemoExport {
 
         try {
             //String path = "C:\\Users\\nicol\\Desktop\\ometiff\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
-            String path = "C:\\kheops\\ntest-" + sizeInPixelX + "x"+sizeInPixelY+"px-" + tileSize + "tile.ome.tiff";
+            String path = "C:\\kheops\\test_x-" + sizeInPixelX + "_y-"+sizeInPixelY+"_tile-" + tileSize + "_nT-"+nT+".ome.tiff";
             System.out.println("Saving "+path);
-            OMETiffExporter.builder()
-                    .putXYZRAI(img)
-                    .putXYZRAI(0,1,img)
-                    .defineMetaData("Image")
+
+            Instant start = Instant.now();
+
+            OMETiffExporter.OMETiffExporterBuilder.Data.DataBuilder dataBuilder = OMETiffExporter.builder();
+
+            for (int t = 0;t<nT;t++) {
+                dataBuilder.putXYZRAI(0,t,img);
+            }
+
+            dataBuilder.defineMetaData("Image")
                     .imageName("Bob")
                     .voxelPhysicalSizeMicrometer(10,10,2)
                     .pixelsTimeIncrementInS(0.35)
                     .defineWriteOptions()
+                    .tileSize(tileSize,tileSize)
+                    .monitor(ij.get(TaskService.class))
                     .savePath(path)
                     .create()
                     .export();
+
+            Instant end = Instant.now();
+
+            System.out.println("Export time (ms) \t"+Duration.between(start,end).toMillis());
 
         } catch (Exception e) {
             // TODO Auto-generated catch block

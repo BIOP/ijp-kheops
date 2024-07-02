@@ -27,7 +27,9 @@ import ch.epfl.biop.kheops.KheopsHelper;
 import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
 import ij.IJ;
 import loci.common.DebugTools;
+import loci.formats.FormatException;
 import loci.formats.IFormatReader;
+import loci.formats.in.OIRReader;
 import loci.formats.meta.IMetadata;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.Context;
@@ -145,10 +147,29 @@ public class KheopsBatchCommand implements Command {
                             IJ.log("Processing " + input_path);
                             String fileName = input_path.getName();
 
-                            KheopsHelper.SourcesInfo sourcesInfo =
-                                    KheopsHelper
-                                            .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, 1,
-                                                    1, false, "CORNER", context);
+                            final KheopsHelper.SourcesInfo sourcesInfo;
+
+                            if (FilenameUtils.isExtension(input_path.getAbsolutePath(),"oir")) {
+                                // We need to read one full plane, otherwise the reader is too bad
+                                // I unfortunately need to initialize a reader to get the size
+                                System.out.println("OIR File detected! Reading full plane.");
+                                OIRReader r = new OIRReader();
+                                try {
+                                    r.setId(input_path.getAbsolutePath());
+                                    sourcesInfo =
+                                        KheopsHelper
+                                                .getSourcesFromFile(input_path.getAbsolutePath(), r.getSizeX(), r.getSizeY(), 1,
+                                                        1, false, "CORNER", context);
+                                } catch (FormatException | IOException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            } else {
+                                sourcesInfo =
+                                        KheopsHelper
+                                                .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, 1,
+                                                        1, false, "CORNER", context);
+
+                            }
 
                             int nSeriesOriginal = sourcesInfo.idToSources.keySet().size();
 
