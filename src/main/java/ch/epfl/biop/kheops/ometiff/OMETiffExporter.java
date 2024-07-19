@@ -505,10 +505,47 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					currentLevelOmeMeta.setPixelsSizeX(new PositiveInteger(maxX), dstSeries);
 					currentLevelOmeMeta.setPixelsSizeY(new PositiveInteger(maxY), dstSeries);
 
+					Unit<Length> unitX = UNITS.REFERENCEFRAME;
+					double pixPhysicalSizeX = 1;
+
+					if (omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries)!=null) {
+						if (omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).value()!=null) {
+							pixPhysicalSizeX = omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).value().doubleValue();
+						} else {
+							logger.warn("UNSPECIFIED PIXEL SIZE IN X, please set it (override pixel size)");
+						}
+						if (omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()!= null) {
+							unitX = omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit();
+						} else {
+							logger.warn("UNSPECIFIED PIXEL UNIT IN X, please set it (override pixel size)");
+						}
+					} else {
+						logger.warn("UNSPECIFIED PIXEL SIZE IN X, please set it (override pixel size)");
+					}
+
 					currentLevelOmeMeta.setPixelsPhysicalSizeX(
-							new Length(omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).value().doubleValue() * Math.pow(downsample, r + 1), omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()), dstSeries);
+							new Length(pixPhysicalSizeX * Math.pow(downsample, r + 1), unitX), dstSeries);
+
+					Unit<Length> unitY = UNITS.REFERENCEFRAME;
+					double pixPhysicalSizeY = 1;
+
+					if (omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries)!=null) {
+						if (omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries).value()!=null) {
+							pixPhysicalSizeY = omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries).value().doubleValue();
+						} else {
+							logger.warn("UNSPECIFIED PIXEL SIZE IN Y, please set it (override pixel size)");
+						}
+						if (omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries).unit()!= null) {
+							unitY = omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries).unit();
+						} else {
+							logger.warn("UNSPECIFIED PIXEL UNIT IN Y, please set it (override pixel size)");
+						}
+					} else {
+						logger.warn("UNSPECIFIED PIXEL SIZE IN Y, please set it (override pixel size)");
+					}
+
 					currentLevelOmeMeta.setPixelsPhysicalSizeY(
-							new Length(omeMeta.getPixelsPhysicalSizeY(oriMetaDataSeries).value().doubleValue() * Math.pow(downsample, r + 1), omeMeta.getPixelsPhysicalSizeX(oriMetaDataSeries).unit()), dstSeries);
+							new Length(pixPhysicalSizeY * Math.pow(downsample, r + 1), unitY), dstSeries);
 
 					currentLevelOmeMeta.setPixelsDimensionOrder(DimensionOrder.XYCZT, 0);
 					currentLevelWriter.setMetadataRetrieve(currentLevelOmeMeta);

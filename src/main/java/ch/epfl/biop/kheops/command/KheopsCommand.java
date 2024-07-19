@@ -294,6 +294,7 @@ public class KheopsCommand implements Command {
                                     batchTask.setProgressValue(batchTask.getProgressValue() + 1);
                                 }
                             }
+                            e.printStackTrace();
                         }
                     }
                 }
