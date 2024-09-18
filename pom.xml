@@ -109,7 +109,8 @@
 		<license.licenseName>gpl_v2</license.licenseName>
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 
-		<bigdataviewer-image-loaders.version>0.8.2</bigdataviewer-image-loaders.version>
+		<bigdataviewer-image-loaders.version>0.8.5</bigdataviewer-image-loaders.version>
+		<reflections.version>0.10.2</reflections.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
@@ -204,6 +205,13 @@
 			<groupId>xml-apis</groupId>
 			<artifactId>xml-apis</artifactId>
 			<version>1.4.01</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.reflections</groupId>
+			<artifactId>reflections</artifactId>
+			<version>${reflections.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
