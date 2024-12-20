@@ -5,13 +5,13 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>38.0.1</version>
+		<version>39.0.0</version>
 		<relativePath />
 	</parent>
 
 	<groupId>ch.epfl.biop</groupId>
 	<artifactId>ijp-kheops</artifactId>
-	<version>0.5.2-SNAPSHOT</version>
+	<version>0.6.0-SNAPSHOT</version>
 
 	<name>BIOP Kheops Command</name>
 	<description>IJ2 commands that use bio-formats to create pyramidal ome.tiff</description>
@@ -109,7 +109,7 @@
 		<license.licenseName>gpl_v2</license.licenseName>
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
 
-		<bigdataviewer-image-loaders.version>0.8.5</bigdataviewer-image-loaders.version>
+		<bigdataviewer-image-loaders.version>0.9.0</bigdataviewer-image-loaders.version>
 		<reflections.version>0.10.2</reflections.version>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
