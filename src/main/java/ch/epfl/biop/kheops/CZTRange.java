@@ -84,11 +84,11 @@ public class CZTRange {
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
 		builder.append("C:");
-		rangeC.forEach(c -> builder.append(c + ","));
+		rangeC.forEach(c -> builder.append(c).append(","));
 		builder.append(" Z:");
-		rangeZ.forEach(z -> builder.append(z + ","));
+		rangeZ.forEach(z -> builder.append(z).append(","));
 		builder.append(" T:");
-		rangeT.forEach(t -> builder.append(t + ","));
+		rangeT.forEach(t -> builder.append(t).append(","));
 		return builder.toString();
 	}
 

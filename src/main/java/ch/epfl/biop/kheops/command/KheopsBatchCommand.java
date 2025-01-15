@@ -96,7 +96,6 @@ public class KheopsBatchCommand implements Command {
     double vox_size_z;
 
     final Set<String> paths = new HashSet<>();
-    public static Consumer<String> logger = IJ::log;
 
     @Parameter
     TaskService taskService;
@@ -124,7 +123,7 @@ public class KheopsBatchCommand implements Command {
             IJ.log("You selected a few files only, the batch kheops command may be slower than the normal kheops with the batch button");
         }
 
-        if ((output_dir == null) || (output_dir.toString().equals(""))) {
+        if ((output_dir == null) || (output_dir.toString().isEmpty())) {
             output_dir = new File(input_paths[0].getParent());
         } else {
             output_dir.mkdirs();
@@ -147,29 +146,10 @@ public class KheopsBatchCommand implements Command {
                             IJ.log("Processing " + input_path);
                             String fileName = input_path.getName();
 
-                            final KheopsHelper.SourcesInfo sourcesInfo;
-
-                            if (FilenameUtils.isExtension(input_path.getAbsolutePath(),"oir")) {
-                                // We need to read one full plane, otherwise the reader is too bad
-                                // I unfortunately need to initialize a reader to get the size
-                                System.out.println("OIR File detected! Reading full plane.");
-                                OIRReader r = new OIRReader();
-                                try {
-                                    r.setId(input_path.getAbsolutePath());
-                                    sourcesInfo =
-                                        KheopsHelper
-                                                .getSourcesFromFile(input_path.getAbsolutePath(), r.getSizeX(), r.getSizeY(), 1,
-                                                        1, false, "CORNER", context);
-                                } catch (FormatException | IOException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            } else {
-                                sourcesInfo =
+                            final KheopsHelper.SourcesInfo sourcesInfo =
                                         KheopsHelper
                                                 .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, 1,
                                                         1, false, "CORNER", context);
-
-                            }
 
                             int nSeriesOriginal = sourcesInfo.idToSources.keySet().size();
 
@@ -312,9 +292,9 @@ public class KheopsBatchCommand implements Command {
             // CODE HERE
             Instant finish = Instant.now();
             long timeElapsed = Duration.between(start, finish).toMillis();
-            logger.accept("\t Batch OME TIFF conversion (Kheops) \t Run time=\t" + (timeElapsed / 1000) + "\t s ");
+            IJ.log("\t Batch OME TIFF conversion (Kheops) \t Run time=\t" + (timeElapsed / 1000) + "\t s ");
             KheopsHelper.writeElapsedTime(start,
-                    logService.subLogger(this.getClass().getSimpleName()),
+                    (str) -> logService.subLogger(this.getClass().getSimpleName()).info(str),
                     "Batch export time:");
         } finally {
             if (batchTask!=null) batchTask.finish();

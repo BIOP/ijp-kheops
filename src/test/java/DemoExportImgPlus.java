@@ -48,7 +48,7 @@ public class DemoExportImgPlus {
                 2,
                 (location, value) -> {
                     value.set(
-                            ARGBType.rgba(location.getIntPosition(0), location.getIntPosition(1), location.getIntPosition(0)*0,255)
+                            ARGBType.rgba(location.getIntPosition(0), location.getIntPosition(1), location.getIntPosition(0),255)
                     );
                 },
                 ARGBType::new);

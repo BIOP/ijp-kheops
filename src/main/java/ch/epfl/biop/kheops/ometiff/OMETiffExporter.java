@@ -238,8 +238,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			}
 		}
 		// Tile size should be a multiple of 16 for TIFF
-		this.tileX = tempTileSizeX<16?16:Math.round((float)tempTileSizeX / 16.0F) * 16;
-		this.tileY = tempTileSizeY<16?16:Math.round((float)tempTileSizeY / 16.0F) * 16;
+		this.tileX = tempTileSizeX<16?16:Math.round((float)tempTileSizeX / 16.0F) * 16L;
+		this.tileY = tempTileSizeY<16?16:Math.round((float)tempTileSizeY / 16.0F) * 16L;
 
 		// One iteration to count the number of tiles
 		// some assertion : same dimensions for all nr and c and t
@@ -471,9 +471,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			for (int r = 0; r < nResolutionLevels; r++) {
 				int nXTiles = (int) Math.ceil(mapResToWidth.get(r) / (double) tileX);
 				int nYTiles = (int) Math.ceil(mapResToHeight.get(r) / (double) tileY);
-				totalTiles += nXTiles * nYTiles;
+				totalTiles += (long) nXTiles * nYTiles;
 			}
-			totalTiles *= sizeT * sizeC * sizeZ;
+			totalTiles *= (long) sizeT * sizeC * sizeZ;
 
 			if (writerTask != null) writerTask.setProgressMaximum(totalTiles);
 
@@ -555,11 +555,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					if (compressTempFile) currentLevelWriter.setCompression(CompressionType.LZW.getCompression());
 					currentLevelWriter.setTileSizeX((int) tileX);
 					currentLevelWriter.setTileSizeY((int) tileY);
-					if (r == 0) {
-						currentLevelWriter.setInterleaved(true);
-					} else {
-						currentLevelWriter.setInterleaved(false); // !!!! weird. See TestOMETIFFRGBMultiScaleTile
-					}
+                    // !!!! weird. See TestOMETIFFRGBMultiScaleTile
+                    currentLevelWriter.setInterleaved(r == 0);
 				}
 
 				if (r > 0) writer.setInterleaved(false); // But why the heck ???
@@ -719,7 +716,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	 * - data
 	 * - metadata
 	 * - write options
-	 *
+	 * <p>
 	 * The most simple example looks like:
 	 *             OMETiffExporter.builder()
 	 *                     .defineData()
@@ -728,7 +725,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	 *                     .defineWriteOptions()
 	 *                     .savePath(path)
 	 *                     .create().export();
-	 *
+	 * <p>
 	 *  For more advanced examples, see KheopsCommand
 	 *
 	 */
@@ -816,8 +813,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				 * @param c channel index to place the source
 				 * @param source source and converter
 				 * @return data builder
-				 * @throws UnsupportedOperationException
-				 */
+                 */
 				public DataBuilder<T> put(int c, SourceAndConverter<T> source) throws UnsupportedOperationException {
 					put(c, source.getSpimSource());
 					return this;
@@ -1370,7 +1366,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				/**
 				 * Where to save the exported ome tiff - the path should be valid and not point towards an existing file
 				 * @param path file absolute path, with .ome.tiff extension
-				 * @return
+				 * @return builder
 				 */
 				public WriterOptionsBuilder savePath(String path) {
 					this.filePath = path;
@@ -1378,7 +1374,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				}
 
 				public OMETiffExporter create() throws Exception {
-					if ((filePath == null)||(filePath.trim().equals(""))) {
+					if ((filePath == null)||(filePath.trim().isEmpty())) {
 						throw new IOException("Invalid path file");
 					}
 

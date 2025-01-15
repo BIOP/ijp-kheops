@@ -55,7 +55,7 @@ public class IntRangeParser {
 	 * @throws Exception parsing error usually
 	 */
 	public List<Integer> get(int length) throws Exception {
-		if (expression == null || expression.trim().equals("")) {
+		if (expression == null || expression.trim().isEmpty()) {
 			return IntStream.range(0, length).boxed().collect(Collectors.toList());
 		}
 

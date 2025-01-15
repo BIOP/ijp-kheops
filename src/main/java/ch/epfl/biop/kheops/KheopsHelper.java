@@ -35,6 +35,7 @@ import ch.epfl.biop.bdv.img.imageplus.ImagePlusToSpimData;
 import ch.epfl.biop.bdv.img.opener.OpenerSettings;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.measure.Calibration;
 import loci.formats.IFormatReader;
 import mpicbg.spim.data.generic.AbstractSpimData;
 import mpicbg.spim.data.generic.sequence.BasicImgLoader;
@@ -42,14 +43,15 @@ import mpicbg.spim.data.generic.sequence.BasicViewSetup;
 import mpicbg.spim.data.sequence.Channel;
 import net.imglib2.cache.LoaderCache;
 import net.imglib2.cache.ref.BoundedSoftRefLoaderCache;
+import ome.units.UNITS;
 import ome.units.quantity.Length;
 import ome.units.quantity.Time;
+import ome.units.unit.Unit;
 import ome.xml.meta.MetadataConverter;
 import ome.xml.meta.MetadataRetrieve;
 import ome.xml.meta.MetadataStore;
 import org.apache.commons.lang.time.DurationFormatUtils;
 import org.scijava.Context;
-import org.scijava.log.Logger;
 import spimdata.util.Displaysettings;
 
 import java.io.File;
@@ -60,6 +62,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 public class KheopsHelper {
 
@@ -181,10 +184,10 @@ public class KheopsHelper {
 
     }
 
-    public static void writeElapsedTime(Instant start, Logger logger, String message) {
+    public static void writeElapsedTime(Instant start, Consumer<String> logger, String message) {
         long elapsed = Duration.between(start, Instant.now()).toMillis();
         String fullMessage = message+":  "+DurationFormatUtils.formatDuration(elapsed, "H:mm:ss", true);
-        logger.info(fullMessage);
+        logger.accept(fullMessage);
         IJ.log(fullMessage);
     }
 
@@ -295,6 +298,34 @@ public class KheopsHelper {
         }
 
         return info;
+    }
+
+    public static Unit<Length> getUnitFromCalibration(Calibration cal) {
+
+        assert cal != null;
+        Unit<Length> u = BioFormatsHelper.getUnitFromString(cal.getUnit());
+        if (u!=null) return u;
+
+        switch (cal.getUnit()) {
+            case "um":
+            case "\u03BCm":
+            case "\u03B5m":
+            case "µm":
+            case "micron":
+            case "micrometer":
+                return UNITS.MICROMETER;
+            case "mm":
+            case "millimeter":
+                return UNITS.MILLIMETER;
+            case "cm":
+            case "centimeter":
+                return UNITS.CENTIMETER;
+            case "m":
+            case "meter":
+                return UNITS.METRE;
+            default:
+                return UNITS.REFERENCEFRAME;
+        }
     }
 
 }

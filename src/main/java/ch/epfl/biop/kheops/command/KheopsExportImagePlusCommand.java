@@ -22,14 +22,12 @@
 package ch.epfl.biop.kheops.command;
 
 import bdv.viewer.SourceAndConverter;
-import ch.epfl.biop.bdv.img.bioformats.BioFormatsHelper;
 import ch.epfl.biop.kheops.KheopsHelper;
 import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import loci.common.DebugTools;
-import ome.units.UNITS;
 import ome.units.quantity.Length;
 import ome.units.unit.Unit;
 import org.apache.commons.io.FilenameUtils;
@@ -40,11 +38,8 @@ import org.scijava.plugin.Plugin;
 import org.scijava.task.TaskService;
 
 import java.io.File;
-import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.function.Consumer;
 
 @SuppressWarnings("CanBeFinal")
@@ -101,25 +96,7 @@ public class KheopsExportImagePlusCommand implements Command {
                 KheopsHelper
                         .getSourcesFromImage(image, numberOfBlocksComputedInAdvance, nThreads);
 
-        Set<String> paths = new HashSet<>();
-
         String fileNameWithOutExt = FilenameUtils.removeExtension(imageTitle);
-
-        boolean appendSuffix = false;
-        int counter = 0;
-        if (paths.contains(fileNameWithOutExt)) {
-            fileNameWithOutExt += "_s" + 0;
-        }
-        while (paths.contains(fileNameWithOutExt)) {
-            if (appendSuffix) {
-                fileNameWithOutExt = fileNameWithOutExt.substring(0, fileNameWithOutExt.length() - 2) + "_" + counter;
-            } else {
-                fileNameWithOutExt += "_" + counter;
-            }
-            appendSuffix = true;
-            counter++;
-        }
-        paths.add(fileNameWithOutExt);
 
             SourceAndConverter[] sources = sourcesInfo.idToSources.get(0).toArray(new SourceAndConverter[0]);
 
@@ -140,24 +117,9 @@ public class KheopsExportImagePlusCommand implements Command {
 
                 try {
 
-                    Unit<Length> u;
-                    if (image.getCalibration()==null) {
-                        logger.accept("No calibration!");
-                        u = UNITS.REFERENCEFRAME;
-                        image.setCalibration(new Calibration());
-                    } else {
-                        u = BioFormatsHelper.getUnitFromString(image.getCalibration().getUnit());
-                        if (u==null) {
-                            if (image.getCalibration().getUnit().equals("um") ||
-                                image.getCalibration().getUnit().equals("µm") ||
-                                image.getCalibration().getUnit().equals("micron")) {
-                                u = UNITS.MICROMETER;
-                            } else {
-                                u = UNITS.REFERENCEFRAME;
-                            }
-                        }
-                    }
+                    if (image.getCalibration() == null) image.setCalibration(new Calibration());
 
+                    Unit<Length> u = KheopsHelper.getUnitFromCalibration(image.getCalibration());
 
                     OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
                             .put(sources)
@@ -184,7 +146,6 @@ public class KheopsExportImagePlusCommand implements Command {
 
                 } catch (Exception e) {
                     IJ.log("Error with " + output_path + " export: "+e.getMessage());
-
                 }
             }
 

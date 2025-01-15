@@ -63,7 +63,6 @@ public class ScijavaCommandCheckCapitalLetters {
                         if (containsACapitalLetter(f.getName())) {
                             System.err.println(c.getName() + ": " + f.getName());
                         }
-                        ;
                     });
         }
     }
@@ -74,10 +73,7 @@ public class ScijavaCommandCheckCapitalLetters {
                     if (Service.class.isAssignableFrom(f.getType())) {
                         return false;
                     }
-                    if (f.getType().equals(Context.class)) {
-                        return false;
-                    }
-                    return true;
+                    return !f.getType().equals(Context.class);
                 }).toArray(Field[]::new);
     }
 
@@ -92,7 +88,7 @@ public class ScijavaCommandCheckCapitalLetters {
                         .filter(clazz -> !(DynamicCommand.class.isAssignableFrom(clazz)))
                         .collect(Collectors.toSet());
 
-        commandClasses.forEach(c -> warnAboutCapitalLetter(c));
+        commandClasses.forEach(ScijavaCommandCheckCapitalLetters::warnAboutCapitalLetter);
 
     }
 

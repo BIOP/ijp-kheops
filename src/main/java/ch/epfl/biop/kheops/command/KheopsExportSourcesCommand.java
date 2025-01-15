@@ -154,7 +154,7 @@ public class KheopsExportSourcesCommand implements Command {
                     .tileSize(tile_size_x, tile_size_y).create().export();
 
             KheopsHelper.writeElapsedTime(start,
-                    logger.subLogger(this.getClass().getSimpleName()),
+                    (str) -> logger.subLogger(this.getClass().getSimpleName()).info(str),
                     file.getName()+" export time:");
         }
         catch (Exception e) {

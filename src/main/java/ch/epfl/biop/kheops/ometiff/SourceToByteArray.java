@@ -69,9 +69,9 @@ public class SourceToByteArray {
 			Cursor<UnsignedByteType> c = (Cursor<UnsignedByteType>) Views
 				.flatIterable(rai).cursor();
 
-			nBytes *= 1; // Byte
+            // Byte
 
-			if (nBytes > Integer.MAX_VALUE) {
+            if (nBytes > Integer.MAX_VALUE) {
 				System.err.println("Too many bytes during export!");
 				return null;
 			}

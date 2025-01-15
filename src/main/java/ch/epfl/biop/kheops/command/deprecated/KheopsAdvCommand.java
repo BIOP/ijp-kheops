@@ -92,7 +92,7 @@ public class KheopsAdvCommand implements Command {
             File output_path;
 
             boolean isOutputNull = false;
-            if ((output_dir == null) || (output_dir.toString().equals(""))) {
+            if ((output_dir == null) || (output_dir.toString().isEmpty())) {
                 isOutputNull = true;
                 File parent_dir = new File(input_path.getParent());
                 output_path = new File(parent_dir, fileNameWithOutExt);

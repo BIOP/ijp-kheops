@@ -117,7 +117,7 @@ public class KheopsCommand implements Command {
 
         File parent_dir = new File(input_path.getParent());
 
-        if ((output_dir == null) || (output_dir.toString().equals(""))) {
+        if ((output_dir == null) || (output_dir.toString().isEmpty())) {
             output_dir = parent_dir;
         } else {
             output_dir.mkdirs();
@@ -127,35 +127,10 @@ public class KheopsCommand implements Command {
 
         int numberOfBlocksComputedInAdvance = 64;
 
-        /*KheopsHelper.SourcesInfo sourcesInfo =
-                KheopsHelper
-                        .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, numberOfBlocksComputedInAdvance,
-                        nThreads,false, "CORNER", context);*/
-        //String fileName = input_path.getName();
-
-        final KheopsHelper.SourcesInfo sourcesInfo;
-
-        if (FilenameUtils.isExtension(input_path.getAbsolutePath(),"oir")) {
-            // We need to read one full plane, otherwise the reader is too bad
-            // I unfortunately need to initialize a reader to get the size
-            System.out.println("OIR File detected! Reading full plane.");
-            OIRReader r = new OIRReader();
-            try {
-                r.setId(input_path.getAbsolutePath());
-                sourcesInfo =
-                        KheopsHelper
-                                .getSourcesFromFile(input_path.getAbsolutePath(), r.getSizeX(), r.getSizeY(), 6,
-                                        1, false, "CORNER", context);
-            } catch (FormatException | IOException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            sourcesInfo =
+        final KheopsHelper.SourcesInfo sourcesInfo =
                     KheopsHelper
                             .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, numberOfBlocksComputedInAdvance,
                                     1, false, "CORNER", context);
-
-        }
 
         int nSeriesOriginal = sourcesInfo.idToSources.keySet().size();
 

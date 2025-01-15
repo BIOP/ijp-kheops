@@ -98,14 +98,14 @@ The single writer thread writing to SSD is the limiting factor for Kheops and Bf
 <br>
  These factors are accessible through the API but not through the command in ImageJ:
 
-| File Size | Method | Downsampling Method | Condition | Run time | Effective speed (Mo/s) |
-|-----------| --- | --- | --- | --- | --- |
-| 4.18 GB   | Glencoe | NN | - | 41s | 104.4 Mo/s |
-| 4.18 GB   | Kheops | - | no pyramid | 61s | 70.2 Mo/s |
-| 4.18 GB   | Kheops | Average | no compression | 153s! | 28 Mo/s |
-| 4.18 GB   | Kheops | - | no pyramid & no compression | 53s | 80.8 Mo/s |
-| 4.18 GB   | Kheops | Average | tile = 1024 (not 512) | 96s | 44.6 Mo/s |
-|  4.18 GB  | Kheops | - | tile = 1024 & no pyramid & no compression | 40s | 107.0 Mo/s |
+| File Size | Method  | Downsampling Method | Condition                                 | Run time | Effective speed (Mo/s) |
+|-----------|---------|---------------------|-------------------------------------------|----------|------------------------|
+| 4.18 GB   | Glencoe | NN                  | -                                         | 41s      | 104.4 Mo/s             |
+| 4.18 GB   | Kheops  | -                   | no pyramid                                | 61s      | 70.2 Mo/s              |
+| 4.18 GB   | Kheops  | Average             | no compression                            | 153s!    | 28 Mo/s                |
+| 4.18 GB   | Kheops  | -                   | no pyramid & no compression               | 53s      | 80.8 Mo/s              |
+| 4.18 GB   | Kheops  | Average             | tile = 1024 (not 512)                     | 96s      | 44.6 Mo/s              |
+| 4.18 GB   | Kheops  | -                   | tile = 1024 & no pyramid & no compression | 40s      | 107.0 Mo/s             |
 
 Note that [files are temporarily written two times when pyramids are built](https://forum.image.sc/t/ome-tiff-saving-optimisation-reading-from-the-file-thats-being-written/65705/7).
 
@@ -128,11 +128,11 @@ The test images are 15 images, of typically 15k x 10k pixels, fluorescent 2-chan
 
 Size are varying, but typically 6 resolution levels are computed (dowscale factor 2), with lzw compression. Kheops is parallelizing by using a single thread on each file, while the Glencoe process parallelizes for each file, and processes each file serially. Bftools is using a single thread and processing each file serially. 
 
-| Files Size | #Input files | # Output files | Method | Downsampling Method | Run time | Effective speed (Mo/s) |
-|------------| --- | --- | --- | --- | --- | --- |
-| 9.2 Go     | 15 | 15 | **Kheops** | Average | 47s | 200 Mo/s |
-| 9.2 Go     | 15 | 15 | Glencoe | NN | 142s | 66 Mo/s |
-|  9.2 Go    | 15 | 15 | Kheops deprecated (~bftools) | NN | 270s | 34.9 Mo/s |
+| Files Size | #Input files | # Output files | Method                       | Downsampling Method | Run time | Effective speed (Mo/s) |
+|------------|--------------|----------------|------------------------------|---------------------|----------|------------------------|
+| 9.2 Go     | 15           | 15             | **Kheops**                   | Average             | 47s      | 200 Mo/s               |
+| 9.2 Go     | 15           | 15             | Glencoe                      | NN                  | 142s     | 66 Mo/s                |
+| 9.2 Go     | 15           | 15             | Kheops deprecated (~bftools) | NN                  | 270s     | 34.9 Mo/s              |
 
 Kheops maximizes the SSD and CPU compute capabilities (a bit of luck here, note that when the original file are compressed and thus needs decompression, then CPU becomes limiting). The file is on the E drive.
 
