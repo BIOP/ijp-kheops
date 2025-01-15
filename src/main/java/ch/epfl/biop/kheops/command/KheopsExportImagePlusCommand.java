@@ -148,7 +148,9 @@ public class KheopsExportImagePlusCommand implements Command {
                     } else {
                         u = BioFormatsHelper.getUnitFromString(image.getCalibration().getUnit());
                         if (u==null) {
-                            if (image.getCalibration().getUnit().equals("um") || image.getCalibration().getUnit().equals("µm")) {
+                            if (image.getCalibration().getUnit().equals("um") ||
+                                image.getCalibration().getUnit().equals("µm") ||
+                                image.getCalibration().getUnit().equals("micron")) {
                                 u = UNITS.MICROMETER;
                             } else {
                                 u = UNITS.REFERENCEFRAME;
@@ -162,9 +164,6 @@ public class KheopsExportImagePlusCommand implements Command {
                             .defineMetaData(image.getTitle())
                             .putMetadataFromSources(sources, u)
                             .pixelsTimeIncrementInS(image.getCalibration().frameInterval);
-                            //.applyOnMeta(meta -> {
-                            //    return meta;
-                            //});
 
                     OMETiffExporter exporter = builder.defineWriteOptions()
                             .maxTilesInQueue(numberOfBlocksComputedInAdvance)
@@ -179,8 +178,6 @@ public class KheopsExportImagePlusCommand implements Command {
                             .monitor(taskService)
                             .savePath(output_path.getAbsolutePath())
                             .tileSize(tileSize, tileSize).create();
-
-
 
                     exporter.export();
 
