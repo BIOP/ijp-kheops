@@ -271,8 +271,11 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 	public void cancelExport() {
 		isCanceled = true;
-		synchronized (tileLock) { // Notifies that a new resolution level is being written
-			tileLock.notifyAll();
+		while (!writerTask.isDone()) {
+			// TODO check whether this avoid making multiple cancel press
+			synchronized (tileLock) { // Notifies that a new resolution level is being written
+				tileLock.notifyAll();
+			}
 		}
 	}
 
