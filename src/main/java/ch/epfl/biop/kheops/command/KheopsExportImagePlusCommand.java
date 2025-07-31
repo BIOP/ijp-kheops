@@ -21,16 +21,8 @@
  */
 package ch.epfl.biop.kheops.command;
 
-import bdv.viewer.SourceAndConverter;
-import ch.epfl.biop.kheops.KheopsHelper;
-import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
-import ij.IJ;
+import ch.epfl.biop.ImagePlusToOMETiff;
 import ij.ImagePlus;
-import ij.measure.Calibration;
-import loci.common.DebugTools;
-import ome.units.quantity.Length;
-import ome.units.unit.Unit;
-import org.apache.commons.io.FilenameUtils;
 import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.plugin.Parameter;
@@ -38,9 +30,6 @@ import org.scijava.plugin.Plugin;
 import org.scijava.task.TaskService;
 
 import java.io.File;
-import java.time.Duration;
-import java.time.Instant;
-import java.util.function.Consumer;
 
 @SuppressWarnings("CanBeFinal")
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert Image to Pyramidal OME TIFF")
@@ -71,88 +60,23 @@ public class KheopsExportImagePlusCommand implements Command {
     @Parameter(label="Compress temporary files (LZW)")
     boolean compress_temp_files = false;
 
-    public static Consumer<String> logger = IJ::log;
-
     @Parameter
     TaskService taskService;
 
     @Override
     public void run() {
 
-        Instant start = Instant.now();
-        String imageTitle = image.getTitle();
-
-        //--------------------
-        int tileSize = 512;
-        int nThreads = Math.max(1,Runtime.getRuntime().availableProcessors()-1);
-
         if (!output_dir.exists()) output_dir.mkdirs();
 
-        DebugTools.enableLogging("WARN");
-
-        int numberOfBlocksComputedInAdvance = 64;
-
-        KheopsHelper.SourcesInfo sourcesInfo =
-                KheopsHelper
-                        .getSourcesFromImage(image, numberOfBlocksComputedInAdvance, nThreads);
-
-        String fileNameWithOutExt = FilenameUtils.removeExtension(imageTitle);
-
-            SourceAndConverter[] sources = sourcesInfo.idToSources.get(0).toArray(new SourceAndConverter[0]);
-
-            File output_path = new File(output_dir, fileNameWithOutExt+".ome.tiff");
-
-            if (output_path.exists()) {
-                IJ.log("Error: file " + output_path.getAbsolutePath() + " already exists. Skipped!");
-            } else {
-
-                int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0, 0).max(0), sources[0].getSpimSource().getSource(0, 0).max(1));
-
-                int nResolutions = 1;
-
-                while (sizeFullResolution > tileSize) {
-                    sizeFullResolution /= 2;
-                    nResolutions++;
-                }
-
-                try {
-
-                    if (image.getCalibration() == null) image.setCalibration(new Calibration());
-
-                    Unit<Length> u = KheopsHelper.getUnitFromCalibration(image.getCalibration());
-
-                    OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
-                            .put(sources)
-                            .defineMetaData(image.getTitle())
-                            .putMetadataFromSources(sources, u)
-                            .pixelsTimeIncrementInS(image.getCalibration().frameInterval);
-
-                    OMETiffExporter exporter = builder.defineWriteOptions()
-                            .maxTilesInQueue(numberOfBlocksComputedInAdvance)
-                            .compression(compression)
-                            .compressTemporaryFiles(compress_temp_files)
-                            .nThreads(nThreads)
-                            .downsample(2)
-                            .nResolutionLevels(nResolutions)
-                            .rangeT(subset_frames)
-                            .rangeC(subset_channels)
-                            .rangeZ(subset_slices)
-                            .monitor(taskService)
-                            .savePath(output_path.getAbsolutePath())
-                            .tileSize(tileSize, tileSize).create();
-
-                    exporter.export();
-
-
-                } catch (Exception e) {
-                    IJ.log("Error with " + output_path + " export: "+e.getMessage());
-                }
-            }
-
-        // CODE HERE
-        Instant finish = Instant.now();
-        long timeElapsed = Duration.between(start, finish).toMillis();
-        logger.accept(imageTitle+"\t OME TIFF conversion (Kheops) \t Run time=\t"+(timeElapsed/1000)+"\t s"+"\t parallel = \t "+false+"\t nProcessors = \t"+nThreads);
-    }
+        ImagePlusToOMETiff.builder(image, output_dir)
+                .compression(compression)
+                .taskService(taskService)
+                .createMultipleResolutions(true)
+                .compressTemporaryFiles(compress_temp_files)
+                .rangeT(subset_frames)
+                .rangeC(subset_channels)
+                .rangeZ(subset_slices)
+                .build().execute();
+        }
 
 }

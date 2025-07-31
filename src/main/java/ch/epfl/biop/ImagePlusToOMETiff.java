@@ -56,6 +56,10 @@ public class ImagePlusToOMETiff {
         private int numberOfBlocksComputedInAdvance = 64;
         private boolean compressTemporaryFiles = false;
         private int downsampleFactor = 2;
+        private String rangeC="";
+        private String rangeZ="";
+        private String rangeT="";
+
         private Consumer<String> customLogger = logger;
 
         public Builder(ImagePlus image, File file) {
@@ -108,6 +112,21 @@ public class ImagePlusToOMETiff {
             return this;
         }
 
+        public Builder rangeT(String rangeT) {
+            this.rangeT = rangeT;
+            return this;
+        }
+
+        public Builder rangeC(String rangeC) {
+            this.rangeC = rangeC;
+            return this;
+        }
+
+        public Builder rangeZ(String rangeZ) {
+            this.rangeZ = rangeZ;
+            return this;
+        }
+
         public OMETiffExportJob build() {
             return new OMETiffExportJob(this);
         }
@@ -125,6 +144,7 @@ public class ImagePlusToOMETiff {
         private final int numberOfBlocksComputedInAdvance;
         private final boolean compressTemporaryFiles;
         private final int downsampleFactor;
+        private final String rangeC, rangeZ, rangeT;
         private final Consumer<String> customLogger;
 
         private OMETiffExportJob(Builder builder) {
@@ -139,6 +159,9 @@ public class ImagePlusToOMETiff {
             this.compressTemporaryFiles = builder.compressTemporaryFiles;
             this.downsampleFactor = builder.downsampleFactor;
             this.customLogger = builder.customLogger;
+            this.rangeC = builder.rangeC;
+            this.rangeZ = builder.rangeZ;
+            this.rangeT = builder.rangeT;
         }
 
         public void execute() {
@@ -204,6 +227,9 @@ public class ImagePlusToOMETiff {
                             .monitor(taskService)
                             .savePath(output_path.getAbsolutePath())
                             .tileSize(tileSize, tileSize)
+                            .rangeC(rangeC)
+                            .rangeT(rangeT)
+                            .rangeZ(rangeZ)
                             .create();
 
                     exporter.export();
