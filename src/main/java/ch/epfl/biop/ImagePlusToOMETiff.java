@@ -172,7 +172,7 @@ public class ImagePlusToOMETiff {
             Instant start = Instant.now();
             String imageTitle = image.getTitle();
 
-            File output_dir = new File(file.getParent());
+            File output_dir = file; //new File(file.getParent());
 
             if (!output_dir.exists()) output_dir.mkdirs();
 
