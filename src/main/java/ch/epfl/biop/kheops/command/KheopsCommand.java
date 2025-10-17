@@ -27,9 +27,7 @@ import ch.epfl.biop.kheops.KheopsHelper;
 import ch.epfl.biop.kheops.ometiff.OMETiffExporter;
 import ij.IJ;
 import loci.common.DebugTools;
-import loci.formats.FormatException;
 import loci.formats.IFormatReader;
-import loci.formats.in.OIRReader;
 import loci.formats.meta.IMetadata;
 import org.apache.commons.io.FilenameUtils;
 import org.scijava.Context;
@@ -47,8 +45,11 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Set;
+import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -82,6 +83,18 @@ public class KheopsCommand implements Command {
 
     @Parameter( label = "Timepoints subset:", required = false )
     String subset_frames = "";
+
+    @Parameter( label = "Split Channels:", required = false )
+    boolean split_channels = false;
+
+    @Parameter( label = "Split Slices:", required = false )
+    boolean split_slices = false;
+
+    @Parameter( label = "Split Timepoints:", required = false )
+    boolean split_frames = false;
+
+    //@Parameter( label = "Parallel Export When Split:", required = false )
+    boolean parallel_split_export = false; // Couldn't observe any performance gain with true
 
     @Parameter(label="Compress temporary files (LZW)")
     boolean compress_temp_files = false;
@@ -181,7 +194,7 @@ public class KheopsCommand implements Command {
                     counter++;
                 }
                 paths.add(fileNameWithOutExt);
-                indexToFilePath.put(iSeries, fileNameWithOutExt + ".ome.tiff");
+                indexToFilePath.put(iSeries, fileNameWithOutExt );
             });
 
             Stream<Integer> idStream = series.stream();
@@ -199,77 +212,125 @@ public class KheopsCommand implements Command {
                     if (output_path.exists()) {
                         IJ.log("Error: file " + output_path.getAbsolutePath() + " already exists. Skipped!");
                     } else {
-
-                        int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0, 0).max(0), sources[0].getSpimSource().getSource(0, 0).max(1));
-
-                        int nResolutions = 1;
-
-                        while (sizeFullResolution > tileSize) {
-                            sizeFullResolution /= 2;
-                            nResolutions++;
-                        }
-
+                        Task export = taskService.createTask("Export " + fileName);
                         try {
-                            OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
-                                    .put(sources)
-                                    .defineMetaData("Image")
-                                    .applyOnMeta(meta -> {
-                                        IFormatReader reader = null;
-                                        try {
-                                            try {
-                                                reader = sourcesInfo.readerPool.acquire();
-                                                IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
-                                                transferSeriesMeta(medataSrc, iSeries, meta, 0);
-                                            } finally {
-                                                sourcesInfo.readerPool.recycle(reader);
-                                            }
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
+
+
+                            int nTimepoints = 0;
+                            while (sources[0].getSpimSource().isPresent(nTimepoints)) nTimepoints++;
+
+                            CZTSetIterator iterator = new CZTSetIterator(subset_channels, subset_slices, subset_frames, split_channels, split_slices, split_frames, sources.length, (int) sources[0].getSpimSource().getSource(0,0).max(2), nTimepoints);
+
+                            List<CZTSet> sets = new ArrayList<>();
+                            for (CZTSetIterator it = iterator; it.hasNext(); ) {
+                                CZTSet set = it.next();
+                                sets.add(set);
+                            }
+
+                            AtomicInteger counter = new AtomicInteger();
+                            int nExportedFiles = sets.size();
+
+                            export.setProgressMaximum(nExportedFiles);
+
+                            Stream<CZTSet> stream;
+
+                            final boolean finalParallelProcess;
+
+                            if (parallel_split_export) {
+                                stream = sets.stream().parallel();
+                                finalParallelProcess = false;
+                            } else {
+                                stream = sets.stream();
+                                finalParallelProcess = parallelProcess;
+                            }
+
+                            stream.forEach(set -> {
+                                if (export.isCanceled()) return;
+                                try {
+                                    try {
+
+                                        int sizeFullResolution = (int) Math.min(sources[0].getSpimSource().getSource(0, 0).max(0), sources[0].getSpimSource().getSource(0, 0).max(1));
+
+                                        int nResolutions = 1;
+
+                                        while (sizeFullResolution > tileSize) {
+                                            sizeFullResolution /= 2;
+                                            nResolutions++;
                                         }
-                                        return meta;
-                                    });
-                            if (override_voxel_size) {
-                                builder.voxelPhysicalSizeMicrometer(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
-                            }
-                            OMETiffExporter exporter = builder.defineWriteOptions()
-                                    .maxTilesInQueue(numberOfBlocksComputedInAdvance)
-                                    .compression(compression)
-                                    .compressTemporaryFiles(compress_temp_files)
-                                    .nThreads(parallelProcess ? 0 : nThreads)
-                                    .downsample(2)
-                                    .nResolutionLevels(nResolutions)
-                                    .rangeT(subset_frames)
-                                    .rangeC(subset_channels)
-                                    .rangeZ(subset_slices)
-                                    .monitor(taskService)
-                                    .savePath(output_path.getAbsolutePath())
-                                    .tileSize(tileSize, tileSize).create();
 
-                            if (batchTask!=null) {
-                                synchronized (cancelConcatenatorLock) {
-                                    Runnable callback = batchTask.getCancelCallBack();
-                                    batchTask.setCancelCallBack(() -> {
-                                        callback.run();
-                                        exporter.cancelExport();
-                                    });
-                                }
-                            }
+                                        OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
+                                                .put(sources)
+                                                .defineMetaData("Image")
+                                                .applyOnMeta(meta -> {
+                                                    IFormatReader reader = null;
+                                                    try {
+                                                        try {
+                                                            reader = sourcesInfo.readerPool.acquire();
+                                                            IMetadata medataSrc = (IMetadata) reader.getMetadataStore();
+                                                            transferSeriesMeta(medataSrc, iSeries, meta, 0);
+                                                        } finally {
+                                                            sourcesInfo.readerPool.recycle(reader);
+                                                        }
+                                                    } catch (Exception e) {
+                                                        e.printStackTrace();
+                                                    }
+                                                    return meta;
+                                                });
+                                        if (override_voxel_size) {
+                                            builder.voxelPhysicalSizeMicrometer(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
+                                        }
 
-                            exporter.export();
-                            if (batchTask!=null) {
-                                synchronized (cancelConcatenatorLock) {
-                                    batchTask.setProgressValue(batchTask.getProgressValue() + 1);
-                                }
-                            }
+                                        OMETiffExporter exporter = builder.defineWriteOptions()
+                                                .maxTilesInQueue(numberOfBlocksComputedInAdvance)
+                                                .compression(compression)
+                                                .compressTemporaryFiles(compress_temp_files)
+                                                .nThreads(finalParallelProcess ? 0 : nThreads)
+                                                .downsample(2)
+                                                .nResolutionLevels(nResolutions)
+                                                .rangeT(set.frames_set)
+                                                .rangeC(set.channels_set)
+                                                .rangeZ(set.slices_set)
+                                                .monitor(taskService)
+                                                .savePath(output_path.getAbsolutePath()+optionalSubSetPattern(set)+".ome.tiff")
+                                                .tileSize(tileSize, tileSize).create();
 
-                        } catch (Exception e) {
-                            IJ.log("Error with " + output_path + " export: "+e.getMessage());
-                            if (batchTask!=null) {
-                                synchronized (cancelConcatenatorLock) {
-                                    batchTask.setProgressValue(batchTask.getProgressValue() + 1);
+                                        if (batchTask!=null) {
+                                            synchronized (cancelConcatenatorLock) {
+                                                Runnable callback = batchTask.getCancelCallBack();
+                                                batchTask.setCancelCallBack(() -> {
+                                                    callback.run();
+                                                    exporter.cancelExport();
+                                                });
+                                            }
+                                        }
+
+                                        exporter.export();
+                                        if (batchTask!=null) {
+                                            synchronized (cancelConcatenatorLock) {
+                                                batchTask.setProgressValue(batchTask.getProgressValue() + 1);
+                                            }
+                                        }
+
+                                    } catch (Exception e) {
+                                        IJ.log("Error with " + output_path + " export: "+e.getMessage());
+                                        if (batchTask!=null) {
+                                            synchronized (cancelConcatenatorLock) {
+                                                batchTask.setProgressValue(batchTask.getProgressValue() + 1);
+                                            }
+                                        }
+                                        e.printStackTrace();
+                                    }
+                                    export.setProgressValue(counter.incrementAndGet());
+
+                                } catch (Exception e) {
+                                    e.printStackTrace();
                                 }
-                            }
+                            });
+
+                        }  catch(Exception e) {
                             e.printStackTrace();
+                        } finally {
+                            export.finish();
                         }
                     }
                 }
@@ -282,6 +343,8 @@ public class KheopsCommand implements Command {
                     e.printStackTrace();
                 }
             });
+        } catch (Exception e) {
+            e.printStackTrace();
         } finally {
             if (batchTask!=null) batchTask.finish();
         }
@@ -289,6 +352,110 @@ public class KheopsCommand implements Command {
         Instant finish = Instant.now();
         long timeElapsed = Duration.between(start, finish).toMillis();
         logger.accept(input_path.getName()+"\t OME TIFF conversion (Kheops) \t Run time=\t"+(timeElapsed/1000)+"\t s"+"\t parallel = \t "+process_series_in_parallel+"\t nProcessors = \t"+nThreads);
+    }
+
+    private String optionalSubSetPattern(CZTSet set) {
+        String output = "";
+        if (!set.channels_set.isEmpty()) {
+            output+="_C"+set.channels_set;
+        }
+        if (!set.slices_set.isEmpty()) {
+            output+="_Z"+set.slices_set;
+        }
+        if (!set.frames_set.isEmpty()) {
+            output+="_T"+set.frames_set;
+        }
+        return output;
+    }
+
+    static class CZTSetIterator implements Iterator<CZTSet> {
+
+        CZTSet iniSet;
+
+        List<Integer> lC = new ArrayList<>();
+        List<Integer> lZ = new ArrayList<>();
+        List<Integer> lT = new ArrayList<>();
+
+        int iC = 0, iZ = -1, iT = 0, nC, nZ, nT;
+
+        final boolean splitC,splitZ,splitT;
+
+        CZTSetIterator(String range_channels, String range_slices, String range_frames,
+                       boolean splitC, boolean splitZ, boolean splitT,
+                       int nC, int nZ, int nT) throws Exception{
+            iniSet = new CZTSet();
+
+            this.splitC = splitC;
+            this.splitZ = splitZ;
+            this.splitT = splitT;
+
+            iniSet.channels_set = range_channels;
+            iniSet.slices_set = range_slices;
+            iniSet.frames_set = range_frames;
+
+            if (splitC) {
+                lC = new IntRangeParser(range_channels).get(nC);
+                this.nC = lC.size();
+            } else this.nC = 1;
+            if (splitZ) {
+                lZ = new IntRangeParser(range_slices).get(nZ);
+                this.nZ = lZ.size();
+            } else this.nZ = 1;
+            if (splitT) {
+                lT = new IntRangeParser(range_frames).get(nT);
+                this.nT = lT.size();
+            } else this.nT = 1;
+        }
+
+
+        @Override
+        public boolean hasNext() {
+            return !((iC == nC-1)&&(iZ == nZ-1)&&(iT==nT-1));
+        }
+
+        @Override
+        public CZTSet next() {
+            CZTSet next = new CZTSet(iniSet);
+            // T Z C
+            iZ++;
+            if (iZ==nZ) {
+                iZ=0;
+                iC++;
+                if (iC==nC) {
+                    iC=0;
+                    iT++;
+                    if (iT==nT) {
+                        return null; // Done!
+                    }
+                }
+            }
+            if (splitC) next.channels_set = lC.get(iC).toString();
+            if (splitZ) next.slices_set = lZ.get(iZ).toString();
+            if (splitT) next.frames_set = lT.get(iT).toString();
+            return next;
+        }
+    }
+
+    static class CZTSet {
+        String channels_set = "";
+        String slices_set = "";
+        String frames_set = "";
+
+        public CZTSet() {
+
+        }
+
+        public CZTSet(CZTSet ini) {
+            this.channels_set = ini.channels_set;
+            this.slices_set = ini.slices_set;
+            this.frames_set = ini.frames_set;
+        }
+
+        @Override
+        public String toString() {
+            return "C:\t"+channels_set+"\tZ:\t"+slices_set+"\tT\t:"+frames_set;
+        }
+
     }
 
 }
