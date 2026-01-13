@@ -1,4 +1,5 @@
 [![](https://github.com/BIOP/ijp-kheops/actions/workflows/build-main.yml/badge.svg)](https://github.com/BIOP/ijp-kheops/actions/workflows/build-main.yml)
+[![Maven Scijava Version](https://img.shields.io/github/v/tag/BIOP/ijp-kheops?label=Version-[Maven%20Scijava])](https://maven.scijava.org/#browse/browse:releases:ch%2Fepfl%2Fbiop%2Fijp-kheops)
 
 ![Kheops logo](images/0-kheops_logo.png)
 
