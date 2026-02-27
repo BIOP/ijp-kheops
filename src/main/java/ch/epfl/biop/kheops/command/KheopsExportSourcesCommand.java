@@ -42,7 +42,7 @@ import java.util.List;
 
 @SuppressWarnings({ "Unused", "CanBeFinal" })
 @Plugin(type = Command.class,
-        menuPath = "Plugins>BigDataViewer-Playground>Sources>Export>Export Sources To OME Tiff (build pyramid)",
+        menuPath = "Plugins>BigDataViewer-Playground>Export>Source - Export To OME-TIFF",
         description = "Saves Bdv sources as a multi-channel OME-Tiff file, with multi-resolution levels recomputed " +
                 "from the highest resolution level")
 public class KheopsExportSourcesCommand implements Command {

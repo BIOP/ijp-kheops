@@ -32,7 +32,7 @@ import org.scijava.task.TaskService;
 import java.io.File;
 
 @SuppressWarnings("CanBeFinal")
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert Image to Pyramidal OME TIFF")
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Export ImagePlus To OME-TIFF")
 public class KheopsExportImagePlusCommand implements Command {
 
     @Parameter(label = "Image")
