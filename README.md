@@ -69,9 +69,7 @@ run("Kheops - Convert File to Pyramidal OME", "input_path=["+input_path+"] outpu
 
 # Alternative to Kheops, differences and benchmark
 
-[**`bftools`** can be used for similar functionalities](https://docs.openmicroscopy.org/bio-formats/5.9.1/users/comlinetools/index.html). At the core of kheops, the same library is used (readers and writers from bio-formats). However, kheops has been optimized in order to parallelize operations whenever possible. Reading is usually parallelized, however, writing parallelization is only performed when multiple files are written (multi-series file or batch conversion). This can lead to performance improvement ranging from 10% up to a factor 5. 
-
-An optimized workflow from Glencoe also exists that performs fast conversion to OME-TIFF. Documentation and installation instructions for this workflow [can be found here](https://c4science.ch/w/bioimaging_and_optics_platform_biop/image-processing/qupath/ome-tiff-conversion/).
+[**`bftools`** can be used for similar functionalities](https://docs.openmicroscopy.org/bio-formats/5.9.1/users/comlinetools/index.html). At the core of kheops, the same library is used (readers and writers from bio-formats). However, kheops has been optimized in order to parallelize operations whenever possible. Reading is usually parallelized, however, writing parallelization is only performed when multiple files are written (multi-series file or batch conversion). This can lead to performance improvement ranging from 10% up to a factor 5.
 
 However, note that, as of today, neither `bftools` nor the glencoe optimized workflow average images when building pyramids. Instead, they downsample by picking a single pixel from the underlying ones (written NN : nearest neighbor in the benchmark tables). This may lead to unpleasant noisy downscaled images. 
 
