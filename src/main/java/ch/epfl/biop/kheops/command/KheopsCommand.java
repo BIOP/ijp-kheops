@@ -139,6 +139,9 @@ public class KheopsCommand implements Command {
         DebugTools.enableLogging("OFF");
 
         int numberOfBlocksComputedInAdvance = 64;
+        // When series are exported in parallel, each export gets a single worker thread:
+        // a smaller queue keeps the memory footprint close to the one of a serial export
+        int numberOfBlocksComputedInAdvanceWhenParallel = 4;
 
         final KheopsHelper.SourcesInfo sourcesInfo =
                     KheopsHelper
@@ -281,10 +284,10 @@ public class KheopsCommand implements Command {
                                         }
 
                                         OMETiffExporter exporter = builder.defineWriteOptions()
-                                                .maxTilesInQueue(numberOfBlocksComputedInAdvance)
+                                                .maxTilesInQueue(finalParallelProcess ? numberOfBlocksComputedInAdvanceWhenParallel : numberOfBlocksComputedInAdvance)
                                                 .compression(compression)
                                                 .compressTemporaryFiles(compress_temp_files)
-                                                .nThreads(finalParallelProcess ? 0 : nThreads)
+                                                .nThreads(finalParallelProcess ? 1 : nThreads)
                                                 .downsample(2)
                                                 .nResolutionLevels(nResolutions)
                                                 .rangeT(set.frames_set)

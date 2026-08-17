@@ -114,6 +114,9 @@ public class KheopsBatchCommand implements Command {
         //--------------------
         int tileSize = 512;
         int nThreads = Math.max(1,Runtime.getRuntime().availableProcessors()-1);
+        // Files are always exported in parallel here, and each export gets a single worker
+        // thread: a smaller queue keeps the memory footprint close to the one of a serial export
+        int numberOfBlocksComputedInAdvance = 4;
 
         Instant start = Instant.now();
 
@@ -233,9 +236,10 @@ public class KheopsBatchCommand implements Command {
                                                 builder.voxelPhysicalSizeMicrometer(this.vox_size_xy, this.vox_size_xy, this.vox_size_z);
                                             }
                                             OMETiffExporter exporter = builder.defineWriteOptions()
+                                                    .maxTilesInQueue(numberOfBlocksComputedInAdvance)
                                                     .compression(compression)
                                                     .compressTemporaryFiles(compress_temp_files)
-                                                    .nThreads(0)
+                                                    .nThreads(1)
                                                     .downsample(2)
                                                     .nResolutionLevels(nResolutions)
                                                     .rangeT(subset_frames)
