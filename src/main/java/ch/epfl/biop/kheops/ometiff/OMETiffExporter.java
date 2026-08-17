@@ -1240,7 +1240,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				String filePath = "";
 				int tileX = 512;
 				int tileY = 512;
-				String compression = "LZW";
+				// Default compression - uncompressed() has to be called explicitly if no
+				// compression is wanted
+				String compression = CompressionType.LZW.getCompression();
 				boolean compressTempFiles = true;
 				int maxTilesInQueue = 60;
 				TaskService taskService = null;
@@ -1289,6 +1291,18 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 				public WriterOptionsBuilder lzw() {
 					this.compression = CompressionType.LZW.getCompression();
+					return this;
+				}
+
+				/**
+				 * Writes the image without any compression. Since the default compression
+				 * of this builder is LZW, this method has to be called explicitly in order
+				 * to get an uncompressed ome tiff file.
+				 *
+				 * @return the builder
+				 */
+				public WriterOptionsBuilder uncompressed() {
+					this.compression = CompressionType.UNCOMPRESSED.getCompression();
 					return this;
 				}
 
