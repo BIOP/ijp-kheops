@@ -176,8 +176,6 @@ public class ImagePlusToOMETiff {
 
             if (!output_dir.exists()) output_dir.mkdirs();
 
-            DebugTools.enableLogging("WARN");
-
             KheopsHelper.SourcesInfo sourcesInfo =
                     KheopsHelper.getSourcesFromImage(image, numberOfBlocksComputedInAdvance, nThreads);
 
