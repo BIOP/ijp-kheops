@@ -48,7 +48,7 @@ import java.util.List;
 public class KheopsExportSourcesCommand implements Command {
 
     @Parameter(label = "Sources to export")
-    public SourceAndConverter[] sacs;
+    public SourceAndConverter[] sources;
 
     @Parameter(label = "Selected Channels. Leave blank for all", required = false)
     String range_channels = "";
@@ -119,9 +119,9 @@ public class KheopsExportSourcesCommand implements Command {
 
         Instant start = Instant.now();
 
-        List<SourceAndConverter> sources = Arrays.asList(sacs);
+        List<SourceAndConverter> sources = Arrays.asList(this.sources);
 
-        sacs = sources.toArray(new SourceAndConverter[0]);
+        this.sources = sources.toArray(new SourceAndConverter[0]);
 
         int max_tiles_queue = 256;
 
@@ -132,9 +132,9 @@ public class KheopsExportSourcesCommand implements Command {
 
         try {
             OMETiffExporter.OMETiffExporterBuilder.MetaData.MetaDataBuilder builder = OMETiffExporter.builder()
-                    .put(sacs)
+                    .put(this.sources)
                     .defineMetaData(FilenameUtils.removeExtension(imageName))
-                    .putMetadataFromSources(sacs, lUnit);
+                    .putMetadataFromSources(this.sources, lUnit);
 
             if (override_voxel_size) {
                 builder.voxelPhysicalSizeMicrometer(this.vox_size_xy_um, this.vox_size_xy_um, this.vox_size_z_um);
