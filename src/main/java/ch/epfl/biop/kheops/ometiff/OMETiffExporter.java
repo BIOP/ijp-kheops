@@ -102,7 +102,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 	// ------------ Saving options
 	final CZTRange range; // To save a subset of C Z or T
-	final long tileX, tileY;
 	final int nResolutionLevels;
 	final int downsample;
 	final String compression;
@@ -120,6 +119,11 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	final Map<Integer, Integer> mapResToHeight = new HashMap<>();
 	final Map<Integer, Integer> resToNY = new HashMap<>();
 	final Map<Integer, Integer> resToNX = new HashMap<>();
+	final Map<Integer, Integer> resToTileX = new HashMap<>();
+	final Map<Integer, Integer> resToTileY = new HashMap<>();
+
+	// TIFF tiles width and length have to be a multiple of 16
+	static final int TILE_GRANULARITY = 16;
 
 	final boolean isLittleEndian;
 	final boolean isRGB;
@@ -220,45 +224,18 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		this.nThreads = writerSettings.nThreads;
 
 
-		int tempTileSizeX = writerSettings.tileX;
-		int tempTileSizeY = writerSettings.tileY;
-		// Crops tile size in case the image is smaller than the input tile size:
-		// otherwise plenty of zeros are written (but using LZW compression can make
-		// this un-noticed)
-		if (width<=writerSettings.tileX) {
-			tempTileSizeX = width;
-			if ((tempTileSizeX%16)!=0) {
-				tempTileSizeX+=16;
-			}
-		}
-		if (height<=writerSettings.tileY) {
-			tempTileSizeY = height;
-			if ((tempTileSizeY%16)!=0) {
-				tempTileSizeY+=16;
-			}
-		}
-		// Tile size should be a multiple of 16 for TIFF
-		this.tileX = tempTileSizeX<16?16:Math.round((float)tempTileSizeX / 16.0F) * 16L;
-		this.tileY = tempTileSizeY<16?16:Math.round((float)tempTileSizeY / 16.0F) * 16L;
-
-		// One iteration to count the number of tiles
+		// The tile size is adapted to each resolution level, and the number of
+		// tiles is counted along the way
 		// some assertion : same dimensions for all nr and c and t
 		for (int r = 0; r < writerSettings.nResolutions; r++) {
-			int nXTiles;
-			int nYTiles;
-			int maxX, maxY;
-			if (r != 0) {
-				maxX = mapResToWidth.get(r);
-				maxY = mapResToHeight.get(r);
-			}
-			else {
-				maxX = width;
-				maxY = height;
-			}
-			nXTiles = (int) Math.ceil(maxX / (double) writerSettings.tileX);
-			nYTiles = (int) Math.ceil(maxY / (double) writerSettings.tileY);
-			resToNX.put(r, nXTiles);
-			resToNY.put(r, nYTiles);
+			int maxX = mapResToWidth.get(r);
+			int maxY = mapResToHeight.get(r);
+			int tileSizeX = adjustTileSize(writerSettings.tileX, maxX);
+			int tileSizeY = adjustTileSize(writerSettings.tileY, maxY);
+			resToTileX.put(r, tileSizeX);
+			resToTileY.put(r, tileSizeY);
+			resToNX.put(r, (int) Math.ceil(maxX / (double) tileSizeX));
+			resToNY.put(r, (int) Math.ceil(maxY / (double) tileSizeY));
 		}
 
 		// Initialise transient variables for exporting
@@ -267,6 +244,35 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				resToNY, resToNX, writerSettings.maxTilesInQueue);
 		computedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1); // should be enough for avoiding overlap of hash
 
+	}
+
+	/**
+	 * A TIFF tile is always fully written into the file, even if it extends
+	 * beyond the image boundaries: the extra pixels are padded with zeros. Using
+	 * a tile size bigger than necessary thus wastes disk space - this is
+	 * particularly visible with uncompressed files, and with the small
+	 * resolution levels of a pyramid, which can be much smaller than the tile
+	 * size requested by the user, see
+	 * <a href="https://github.com/BIOP/ijp-kheops/issues/22">issue #22</a>.
+	 * <p>
+	 * This method keeps the number of tiles that the requested tile size would
+	 * give, but shrinks the tiles to the smallest size which still covers the
+	 * image (a multiple of 16, as required by the TIFF specification).
+	 *
+	 * @param requestedTileSize tile size requested by the user, along one axis
+	 * @param imageSize size of the image along the same axis
+	 * @return the tile size which is effectively used along this axis
+	 */
+	static int adjustTileSize(int requestedTileSize, int imageSize) {
+		if (imageSize < 1) return TILE_GRANULARITY;
+		// Same rounding as the one performed by loci.formats.out.TiffWriter, so
+		// that the tile size effectively used by the writer is known here
+		int maxTileSize = requestedTileSize < TILE_GRANULARITY ? TILE_GRANULARITY
+				: Math.round((float) requestedTileSize / TILE_GRANULARITY) * TILE_GRANULARITY;
+		int nTiles = (int) Math.ceil(imageSize / (double) maxTileSize);
+		int tileSize = (int) Math.ceil(imageSize / (double) nTiles /
+				TILE_GRANULARITY) * TILE_GRANULARITY;
+		return Math.min(Math.max(tileSize, TILE_GRANULARITY), maxTileSize);
 	}
 
 	public void cancelExport() {
@@ -286,6 +292,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		int z = key.array[3];
 		int y = key.array[4];
 		int x = key.array[5];
+
+		long tileX = resToTileX.get(r);
+		long tileY = resToTileY.get(r);
 
 		long startX = x * tileX;
 		long startY = y * tileY;
@@ -318,6 +327,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		int z = key.array[3];
 		int y = key.array[4];
 		int x = key.array[5];
+
+		long tileX = resToTileX.get(r);
+		long tileY = resToTileY.get(r);
 
 		long startX = x * tileX;
 		long startY = y * tileY;
@@ -465,16 +477,12 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			writer.setId(file.getAbsolutePath());
 			writer.setSeries(dstSeries);
 			writer.setCompression(compression);
-			writer.setTileSizeX((int) tileX);
-			writer.setTileSizeY((int) tileY);
 			writer.setInterleaved(omeMeta.getPixelsInterleaved(dstSeries));
 			totalTiles = 0;
 
 			// Count total number of tiles
 			for (int r = 0; r < nResolutionLevels; r++) {
-				int nXTiles = (int) Math.ceil(mapResToWidth.get(r) / (double) tileX);
-				int nYTiles = (int) Math.ceil(mapResToHeight.get(r) / (double) tileY);
-				totalTiles += (long) nXTiles * nYTiles;
+				totalTiles += (long) resToNX.get(r) * resToNY.get(r);
 			}
 			totalTiles *= (long) sizeT * sizeC * sizeZ;
 
@@ -497,8 +505,10 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 				int maxX = mapResToWidth.get(r);
 				int maxY = mapResToHeight.get(r);
-				int nXTiles = (int) Math.ceil(maxX / (double) tileX);
-				int nYTiles = (int) Math.ceil(maxY / (double) tileY);
+				int tileX = resToTileX.get(r);
+				int tileY = resToTileY.get(r);
+				int nXTiles = resToNX.get(r);
+				int nYTiles = resToNY.get(r);
 
 				if (r < nResolutionLevels - 1) { // No need to write the last one: it won't be used for averaging computation
 					// Setup current level writer
@@ -556,8 +566,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					currentLevelWriter.setId(getFileName(r));
 					currentLevelWriter.setSeries(dstSeries);
 					if (compressTempFile) currentLevelWriter.setCompression(CompressionType.LZW.getCompression());
-					currentLevelWriter.setTileSizeX((int) tileX);
-					currentLevelWriter.setTileSizeY((int) tileY);
+					currentLevelWriter.setTileSizeX(tileX);
+					currentLevelWriter.setTileSizeY(tileY);
                     // !!!! weird. See TestOMETIFFRGBMultiScaleTile
                     currentLevelWriter.setInterleaved(r == 0);
 				}
@@ -565,6 +575,10 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				if (r > 0) writer.setInterleaved(false); // But why the heck ???
 				logger.debug("Saving resolution size " + r);
 				writer.setResolution(r);
+				// The tile size can differ between resolution levels: it is reduced
+				// when a resolution level is smaller than the requested tile size
+				writer.setTileSizeX(tileX);
+				writer.setTileSizeY(tileY);
 
 				currentLevelWritten = r;
 
