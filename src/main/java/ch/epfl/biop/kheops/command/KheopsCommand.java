@@ -127,6 +127,13 @@ public class KheopsCommand implements Command {
         //--------------------
         int tileSize = 1024;
         int nThreads = Math.max(1,Runtime.getRuntime().availableProcessors()-1);
+        // Number of Bio-Formats readers used to read the source. The exporter reads
+        // the full resolution level through them from every worker thread, so a
+        // single reader serializes all the decoding: a pool of one made the export
+        // of a slide scanner file almost twice as slow. The gain saturates quickly
+        // though, because the single writing thread then becomes the limit - 4
+        // readers already give 97% of what 31 give. See BENCHMARKS.md.
+        int readerPoolSize = Math.min(nThreads, 8);
 
         File parent_dir = new File(input_path.getParent());
 
@@ -146,7 +153,7 @@ public class KheopsCommand implements Command {
         final KheopsHelper.SourcesInfo sourcesInfo =
                     KheopsHelper
                             .getSourcesFromFile(input_path.getAbsolutePath(), tileSize, tileSize, numberOfBlocksComputedInAdvance,
-                                    1, false, "CORNER", context);
+                                    readerPoolSize, false, "CORNER", context);
 
         int nSeriesOriginal = sourcesInfo.idToSources.keySet().size();
 
