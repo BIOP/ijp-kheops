@@ -21,8 +21,10 @@
  */
 package ch.epfl.biop.kheops.ometiff;
 
+import loci.common.DataTools;
 import loci.common.DebugTools;
 import loci.common.RandomAccessInputStream;
+import loci.formats.FormatTools;
 import loci.formats.ImageReader;
 import loci.formats.tiff.IFD;
 import loci.formats.tiff.TiffParser;
@@ -31,6 +33,8 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.position.FunctionRandomAccessible;
 import net.imglib2.type.numeric.ARGBType;
 import net.imglib2.type.numeric.integer.UnsignedByteType;
+import net.imglib2.type.numeric.integer.UnsignedShortType;
+import net.imglib2.type.numeric.real.FloatType;
 import net.imglib2.view.Views;
 import org.junit.BeforeClass;
 import org.junit.Rule;
@@ -44,11 +48,17 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Tests of the OME-TIFF export, with a focus on the size of the exported file:
- * the tiles of a TIFF file are always fully written, even when they extend
- * beyond the image boundaries. The exporter thus has to adapt the tile size to
- * each resolution level, otherwise a lot of padding pixels are written, see
+ * Tests of the OME-TIFF export.
+ * <p>
+ * A first set of tests focuses on the size of the exported file: the tiles of a
+ * TIFF file are always fully written, even when they extend beyond the image
+ * boundaries. The exporter thus has to adapt the tile size to each resolution
+ * level, otherwise a lot of padding pixels are written, see
  * <a href="https://github.com/BIOP/ijp-kheops/issues/22">issue #22</a>.
+ * <p>
+ * A second set checks that the exported pixels are the expected ones, for every
+ * supported pixel type and for images which have several channels, z slices and
+ * timepoints.
  */
 public class OMETiffExporterTest {
 
@@ -362,5 +372,273 @@ public class OMETiffExporterTest {
 		File[] files = folder.getRoot().listFiles();
 		assertEquals("Remaining files: " + java.util.Arrays.toString(files), 1,
 			files.length);
+	}
+
+	// ------------------------------- 16 bits, floats, several C, Z and T
+
+	/** @return the value of the 16 bits synthetic image at the given position */
+	private static int value16(int x, int y) {
+		return (x * 31 + y * 257) % 65003;
+	}
+
+	private static RandomAccessibleInterval<UnsignedShortType> gray16Image(
+		int sizeX, int sizeY)
+	{
+		FunctionRandomAccessible<UnsignedShortType> fn =
+			new FunctionRandomAccessible<>(2, (position, pixel) -> pixel.set(value16(
+				position.getIntPosition(0), position.getIntPosition(1))),
+				UnsignedShortType::new);
+		return Views.interval(fn, new FinalInterval(new long[] { 0, 0 }, new long[] {
+			sizeX - 1, sizeY - 1 }));
+	}
+
+	/**
+	 * @return the value of the float synthetic image: a multiple of 1/8, so that
+	 *         the average of a 2x2 block is exactly representable
+	 */
+	private static float valueFloat(int x, int y) {
+		return ((x * 3 + y * 7) % 251) / 8f;
+	}
+
+	private static RandomAccessibleInterval<FloatType> floatImage(int sizeX,
+		int sizeY)
+	{
+		FunctionRandomAccessible<FloatType> fn = new FunctionRandomAccessible<>(2, (
+			position, pixel) -> pixel.set(valueFloat(position.getIntPosition(0),
+				position.getIntPosition(1))), FloatType::new);
+		return Views.interval(fn, new FinalInterval(new long[] { 0, 0 }, new long[] {
+			sizeX - 1, sizeY - 1 }));
+	}
+
+	/** @return the value of a multidimensional 16 bits synthetic image */
+	private static int valueCZT(int x, int y, int c, int z, int t) {
+		return (value16(x, y) + 12345 * c + 4321 * z + 777 * t) % 65003;
+	}
+
+	private static RandomAccessibleInterval<UnsignedShortType> cztImage(int sizeX,
+		int sizeY, int sizeZ, int c, int t)
+	{
+		FunctionRandomAccessible<UnsignedShortType> fn =
+			new FunctionRandomAccessible<>(3, (position, pixel) -> pixel.set(valueCZT(
+				position.getIntPosition(0), position.getIntPosition(1), c, position
+					.getIntPosition(2), t)), UnsignedShortType::new);
+		return Views.interval(fn, new FinalInterval(new long[] { 0, 0, 0 },
+			new long[] { sizeX - 1, sizeY - 1, sizeZ - 1 }));
+	}
+
+	/**
+	 * @return the samples of a plane, decoded according to the pixel type and
+	 *         the endianness the reader reports
+	 */
+	private static double[] readPlane(ImageReader reader, int plane)
+		throws Exception
+	{
+		byte[] bytes = reader.openBytes(plane);
+		int type = reader.getPixelType();
+		int bytesPerPixel = FormatTools.getBytesPerPixel(type);
+		boolean little = reader.isLittleEndian();
+		boolean floatingPoint = FormatTools.isFloatingPoint(type);
+		double[] values = new double[bytes.length / bytesPerPixel];
+		for (int i = 0; i < values.length; i++) {
+			int offset = i * bytesPerPixel;
+			values[i] = floatingPoint ? DataTools.bytesToFloat(bytes, offset,
+				bytesPerPixel, little) : DataTools.bytesToInt(bytes, offset,
+					bytesPerPixel, little);
+		}
+		return values;
+	}
+
+	/** @return a reader positioned on the given resolution level of a file */
+	private static ImageReader open(File file, int resolution) throws Exception {
+		ImageReader reader = new ImageReader();
+		reader.setFlattenedResolutions(false);
+		reader.setId(file.getAbsolutePath());
+		reader.setSeries(0);
+		reader.setResolution(resolution);
+		return reader;
+	}
+
+	/** 16 bits is the most common Kheops input: pixels should be untouched */
+	@Test
+	public void uint16PixelsAreUnchanged() throws Exception {
+		int sizeX = 613, sizeY = 227;
+		File file = export(gray16Image(sizeX, sizeY), "uint16", 512, 3, true);
+		ImageReader reader = open(file, 0);
+		try {
+			assertEquals(FormatTools.UINT16, reader.getPixelType());
+			assertEquals(sizeX, reader.getSizeX());
+			assertEquals(sizeY, reader.getSizeY());
+			double[] plane = readPlane(reader, 0);
+			for (int y = 0; y < sizeY; y++) {
+				for (int x = 0; x < sizeX; x++) {
+					assertEquals("pixel (" + x + ", " + y + ")", value16(x, y), plane[y *
+						sizeX + x], 0);
+				}
+			}
+		}
+		finally {
+			reader.close();
+		}
+	}
+
+	/** The 16 bits pyramid levels should hold the average of the level above */
+	@Test
+	public void uint16PyramidLevelsAreDownsampled() throws Exception {
+		int sizeX = 613, sizeY = 227;
+		File file = export(gray16Image(sizeX, sizeY), "uint16pyr", 128, 3, true);
+		ImageReader reader = open(file, 1);
+		try {
+			int width = reader.getSizeX();
+			int height = reader.getSizeY();
+			double[] plane = readPlane(reader, 0);
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					int expected = (value16(2 * x, 2 * y) + value16(2 * x + 1, 2 * y) +
+						value16(2 * x, 2 * y + 1) + value16(2 * x + 1, 2 * y + 1)) / 4;
+					assertEquals("downsampled pixel (" + x + ", " + y + ")", expected,
+						plane[y * width + x], 1);
+				}
+			}
+		}
+		finally {
+			reader.close();
+		}
+	}
+
+	/** Float pixels should be exported untouched */
+	@Test
+	public void floatPixelsAreUnchanged() throws Exception {
+		int sizeX = 613, sizeY = 227;
+		File file = export(floatImage(sizeX, sizeY), "float", 512, 3, true);
+		ImageReader reader = open(file, 0);
+		try {
+			assertEquals(FormatTools.FLOAT, reader.getPixelType());
+			double[] plane = readPlane(reader, 0);
+			for (int y = 0; y < sizeY; y++) {
+				for (int x = 0; x < sizeX; x++) {
+					assertEquals("pixel (" + x + ", " + y + ")", valueFloat(x, y), plane[y *
+						sizeX + x], 0);
+				}
+			}
+		}
+		finally {
+			reader.close();
+		}
+	}
+
+	/**
+	 * The float pyramid levels should hold the average of the level above - the
+	 * fractional part of the samples has to be preserved.
+	 */
+	@Test
+	public void floatPyramidLevelsAreDownsampled() throws Exception {
+		int sizeX = 612, sizeY = 226;
+		File file = export(floatImage(sizeX, sizeY), "floatpyr", 128, 3, true);
+		ImageReader reader = open(file, 1);
+		try {
+			int width = reader.getSizeX();
+			int height = reader.getSizeY();
+			double[] plane = readPlane(reader, 0);
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					float expected = (valueFloat(2 * x, 2 * y) + valueFloat(2 * x + 1, 2 *
+						y) + valueFloat(2 * x, 2 * y + 1) + valueFloat(2 * x + 1, 2 * y + 1)) /
+						4f;
+					assertEquals("downsampled pixel (" + x + ", " + y + ")", expected,
+						plane[y * width + x], 1e-4);
+				}
+			}
+		}
+		finally {
+			reader.close();
+		}
+	}
+
+	/** The downsampled levels of an RGB image should hold averages too */
+	@Test
+	public void rgbPyramidLevelsAreDownsampled() throws Exception {
+		int sizeX = 256, sizeY = 128;
+		File file = new File(folder.getRoot(), "rgbpyr.ome.tiff");
+		OMETiffExporter.builder().putXYZRAI(rgbImage(sizeX, sizeY)).defineMetaData(
+			"Image").defineWriteOptions().tileSize(64, 64).nResolutionLevels(2)
+			.uncompressed().compressTemporaryFiles(false).savePath(file
+				.getAbsolutePath()).create().export();
+
+		ImageReader reader = open(file, 1);
+		try {
+			int width = reader.getSizeX();
+			int height = reader.getSizeY();
+			byte[] plane = reader.openBytes(0);
+			boolean interleaved = reader.isInterleaved();
+			int stride = interleaved ? 3 : 1;
+			int offset = interleaved ? 1 : width * height;
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width; x++) {
+					int index = stride * (y * width + x);
+					int red = 0, green = 0, blue = 0;
+					for (int dy = 0; dy < 2; dy++) {
+						for (int dx = 0; dx < 2; dx++) {
+							red += value(2 * x + dx, 2 * y + dy);
+							green += value(2 * x + dx, 2 * y + dy + 1);
+							blue += value(2 * x + dx + 1, 2 * y + dy);
+						}
+					}
+					assertEquals("red (" + x + ", " + y + ")", red / 4, plane[index] & 0xFF,
+						1);
+					assertEquals("green (" + x + ", " + y + ")", green / 4, plane[index +
+						offset] & 0xFF, 1);
+					assertEquals("blue (" + x + ", " + y + ")", blue / 4, plane[index + 2 *
+						offset] & 0xFF, 1);
+				}
+			}
+		}
+		finally {
+			reader.close();
+		}
+	}
+
+	/**
+	 * Several channels, z slices and timepoints: every plane should hold its own
+	 * data, which checks the order in which the planes are written.
+	 */
+	@Test
+	public void multiChannelSliceAndTimepointExportIsValid() throws Exception {
+		int sizeX = 130, sizeY = 90, sizeZ = 3, sizeC = 2, sizeT = 2;
+		File file = new File(folder.getRoot(), "czt.ome.tiff");
+		@SuppressWarnings("rawtypes")
+		OMETiffExporter.OMETiffExporterBuilder.Data.DataBuilder data =
+			OMETiffExporter.builder();
+		for (int c = 0; c < sizeC; c++) {
+			for (int t = 0; t < sizeT; t++) {
+				data.putXYZRAI(c, t, (RandomAccessibleInterval) cztImage(sizeX, sizeY,
+					sizeZ, c, t));
+			}
+		}
+		data.defineMetaData("Image").defineWriteOptions().tileSize(64, 64)
+			.nResolutionLevels(2).uncompressed().compressTemporaryFiles(false).savePath(
+				file.getAbsolutePath()).create().export();
+
+		ImageReader reader = open(file, 0);
+		try {
+			assertEquals("channels", sizeC, reader.getSizeC());
+			assertEquals("z slices", sizeZ, reader.getSizeZ());
+			assertEquals("timepoints", sizeT, reader.getSizeT());
+			for (int t = 0; t < sizeT; t++) {
+				for (int c = 0; c < sizeC; c++) {
+					for (int z = 0; z < sizeZ; z++) {
+						double[] plane = readPlane(reader, reader.getIndex(z, c, t));
+						for (int y = 0; y < sizeY; y++) {
+							for (int x = 0; x < sizeX; x++) {
+								assertEquals("pixel (" + x + ", " + y + ") of c" + c + " z" + z +
+									" t" + t, valueCZT(x, y, c, z, t), plane[y * sizeX + x], 0);
+							}
+						}
+					}
+				}
+			}
+		}
+		finally {
+			reader.close();
+		}
 	}
 }
