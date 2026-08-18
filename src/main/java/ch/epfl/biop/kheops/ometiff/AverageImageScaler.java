@@ -99,18 +99,20 @@ public class AverageImageScaler implements IImageScaler {
 			}
 			return buffer.array();
 		} else if ((bytesPerPixel == 4)&&floatingPoint) {
-			float fnShifts = (float) nShifts;
 			ByteBuffer buffer = ByteBuffer.allocate(nPix * 4);
 			for (int iPix = 0; iPix < nPix; iPix++) {
-				int v = 0;
+				// The samples are summed as doubles: summing them as ints would
+				// truncate the fractional part of each sample, and overflow for
+				// large values
+				double v = 0;
 				for (int is = 0; is < nShifts; is++) {
 					int asInt = ((allshifts[is][offs] & 0xFF) << 24)
 							| ((allshifts[is][offs + 1] & 0xFF) << 16)
 							| ((allshifts[is][offs + 2] & 0xFF) << 8)
 							| (allshifts[is][offs + 3] & 0xFF);
-					v += (int) Float.intBitsToFloat(asInt);
+					v += Float.intBitsToFloat(asInt);
 				}
-				buffer.putFloat(v / fnShifts);
+				buffer.putFloat((float) (v / nShifts));
 				offs += bytesPerPixel;
 			}
 			return buffer.array();
