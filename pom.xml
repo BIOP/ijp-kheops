@@ -108,6 +108,12 @@
 		<main-class>ch.epfl.biop.kheops.command.KheopsCommand</main-class>
 		<license.licenseName>gpl_v2</license.licenseName>
 		<license.copyrightOwners>ECOLE POLYTECHNIQUE FEDERALE DE LAUSANNE, Switzerland, BioImaging And Optics Platform (BIOP)</license.copyrightOwners>
+		<!-- ch.epfl.biop.kheops.ometiff.omecommon holds two copies of ome-common
+		     classes, which must keep their original BSD-2-Clause header. Without
+		     this exclusion, license:update-file-header - which release-version.sh
+		     runs on every release - replaces it with the GPL header above and
+		     drops OME's copyright notice. Delete along with that package. -->
+		<license.excludes>**/ometiff/omecommon/AbstractNIOHandle.java,**/ometiff/omecommon/PreallocatingFileHandle.java</license.excludes>
 
 		<bigdataviewer-image-loaders.version>0.23.2-SNAPSHOT</bigdataviewer-image-loaders.version>
 		<reflections.version>0.10.2</reflections.version>
