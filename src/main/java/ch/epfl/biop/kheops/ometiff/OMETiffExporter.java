@@ -431,6 +431,10 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	}
 
 	public void export() throws Exception {
+		// Routes the output through a handle that does not ask the OS to extend the
+		// file on every write. Temporary, see ch.epfl.biop.kheops.ometiff.omecommon.
+		try (ch.epfl.biop.kheops.ometiff.omecommon.FastOutput fastOutput =
+				new ch.epfl.biop.kheops.ometiff.omecommon.FastOutput(file)) {
 		try { // try... finally statement -> makes sure to finish the task in case of errors
 			if (writerTask != null) writerTask.setStatusMessage("Exporting " + file
 					.getName() + " with " + nThreads + " threads.");
@@ -469,8 +473,16 @@ public class OMETiffExporter<T extends NumericType<T>> {
 						mapResToHeight.get(r + 1)), dstSeries, r + 1);
 			}
 
-			// Setup main writer
-			PyramidOMETiffWriter writer = new PyramidOMETiffWriter();
+			// Setup main writer.
+			// PyramidOMETiffWriter.close() reopens the output file twice per plane, to
+			// fill in each plane's SubIFD array. With a single resolution level there is
+			// no SubIFD to fill in and those two opens per plane are pure cost: on a
+			// 4002-plane light sheet stack they were 39 s of a 78 s export. The plain
+			// writer produces the same pixels and the same OME-XML, minus one empty
+			// SubIFD tag per IFD.
+			OMETiffWriter writer = nResolutionLevels > 1
+					? new PyramidOMETiffWriter()
+					: new OMETiffWriter();
 			writer.setMetadataRetrieve(omeMeta);
 			writer.setWriteSequentially(true); // Setting this to false can be problematic according to QuPath
 			writer.setBigTiff(true);
@@ -703,6 +715,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			}
 		} finally {
 			if (writerTask != null) writerTask.finish();
+		}
 		}
 	}
 
