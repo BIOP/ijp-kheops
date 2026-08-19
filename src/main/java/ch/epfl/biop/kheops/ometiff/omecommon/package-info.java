@@ -70,8 +70,10 @@
  * <h2>Careful with the license plugin</h2>
  *
  * The two copied files keep ome's BSD-2-Clause header, which their license
- * requires. {@code mvn license:update-file-header} would replace it with this
- * project's GPL header - do not run it over this package.
+ * requires. {@code license:update-file-header}, which the SciJava release script
+ * runs on every release, would replace it with this project's GPL header. They
+ * are listed in {@code license.excludes} in the POM to prevent that; drop those
+ * entries when this package goes away.
  *
  * <h2>How to remove it</h2>
  *
