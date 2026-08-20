@@ -1180,7 +1180,13 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					int sizeC = sources.length;
 					for (int c = 0; c < sizeC; c++) {
 						if (sacs[c].getConverter() instanceof ColorConverter) {
-							int colorCode = ((ColorConverter)sacs[c].getConverter()).getColor().get();
+							ColorConverter converter = (ColorConverter) sacs[c].getConverter();
+							// Converters of RGB sources (ScaledARGBConverter) do not carry a color:
+							// they report supportsColor() == false and getColor() == 0. Writing that 0
+							// would set the OME Channel Color to a fully transparent black, which readers
+							// turn into an all black LUT over correct pixels.
+							if (!converter.supportsColor()) continue;
+							int colorCode = converter.getColor().get();
 							int colorRed = ARGBType.red(colorCode);
 							int colorGreen = ARGBType.green(colorCode);
 							int colorBlue = ARGBType.blue(colorCode);

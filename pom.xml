@@ -5,13 +5,13 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>40.0.0</version>
+		<version>45.1.0</version>
 		<relativePath />
 	</parent>
 
 	<groupId>ch.epfl.biop</groupId>
 	<artifactId>ijp-kheops</artifactId>
-	<version>0.20.1-SNAPSHOT</version>
+	<version>0.20.2-SNAPSHOT</version>
 
 	<name>BIOP Kheops Command</name>
 	<description>IJ2 commands that use bio-formats to create pyramidal ome.tiff</description>
