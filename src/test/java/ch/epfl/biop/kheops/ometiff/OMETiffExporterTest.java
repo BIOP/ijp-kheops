@@ -45,6 +45,7 @@ import java.io.File;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -634,6 +635,114 @@ public class OMETiffExporterTest {
 							}
 						}
 					}
+				}
+			}
+		}
+		finally {
+			reader.close();
+		}
+	}
+
+	// ---------------------------------------------------------------- no tiling
+
+	/**
+	 * @return an exporter of a multidimensional 16 bits image - a non-positive
+	 *         tile size means that the image should not be tiled
+	 */
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private OMETiffExporter<?> cztExporter(String name, int sizeX, int sizeY,
+		int sizeZ, int sizeC, int sizeT, int tileSize, int nResolutions)
+		throws Exception
+	{
+		File file = new File(folder.getRoot(), name + ".ome.tiff");
+		OMETiffExporter.OMETiffExporterBuilder.Data.DataBuilder data =
+			OMETiffExporter.builder();
+		for (int c = 0; c < sizeC; c++) {
+			for (int t = 0; t < sizeT; t++) {
+				data.putXYZRAI(c, t, (RandomAccessibleInterval) cztImage(sizeX, sizeY,
+					sizeZ, c, t));
+			}
+		}
+		return data.defineMetaData("Image").defineWriteOptions().tileSize(tileSize,
+			tileSize).nResolutionLevels(nResolutions).uncompressed()
+			.compressTemporaryFiles(false).savePath(file.getAbsolutePath()).create();
+	}
+
+	/**
+	 * A non-positive tile size means that the user does not want any tiling: a
+	 * whole plane is then written at once, so the number of blocks reported to the
+	 * task service should be counted in planes, see
+	 * <a href="https://github.com/BIOP/ijp-kheops/issues/31">issue #31</a>.
+	 * <p>
+	 * {@code totalTiles} is the value given to
+	 * {@link org.scijava.task.Task#setProgressMaximum(long)}, and the progress is
+	 * incremented once per written block.
+	 */
+	@Test(timeout = 120000)
+	public void blocksAreCountedInPlanesWhenTilingIsDisabled() throws Exception {
+		int sizeX = 613, sizeY = 227, sizeZ = 3, sizeC = 2, sizeT = 2;
+		int nResolutions = 3;
+		OMETiffExporter<?> exporter = cztExporter("notiled", sizeX, sizeY, sizeZ,
+			sizeC, sizeT, -1, nResolutions);
+		long planes = (long) sizeZ * sizeC * sizeT;
+		exporter.export();
+		assertEquals("One block per plane and per resolution level", planes *
+			nResolutions, exporter.totalTiles);
+		for (int r = 0; r < nResolutions; r++) {
+			assertEquals("Blocks along x of resolution level " + r, 1, (int) exporter.resToNX
+				.get(r));
+			assertEquals("Blocks along y of resolution level " + r, 1, (int) exporter.resToNY
+				.get(r));
+		}
+	}
+
+	/** With tiling, a plane is still written as several blocks */
+	@Test(timeout = 120000)
+	public void blocksAreCountedInTilesWhenTilingIsEnabled() throws Exception {
+		int sizeX = 613, sizeY = 227, sizeZ = 2, sizeC = 2, sizeT = 1;
+		int nResolutions = 3;
+		OMETiffExporter<?> exporter = cztExporter("tiled", sizeX, sizeY, sizeZ,
+			sizeC, sizeT, 128, nResolutions);
+		long planes = (long) sizeZ * sizeC * sizeT;
+		exporter.export();
+		long expected = 0;
+		for (int r = 0; r < nResolutions; r++) {
+			expected += (long) exporter.resToNX.get(r) * exporter.resToNY.get(r);
+		}
+		assertTrue("A tiled export should have more blocks than planes", expected >
+			nResolutions);
+		assertEquals("One block per tile, plane and resolution level", planes *
+			expected, exporter.totalTiles);
+	}
+
+	/** Without tiling, the file should hold plain strips and the same pixels */
+	@Test(timeout = 120000)
+	public void untiledExportIsValid() throws Exception {
+		int sizeX = 613, sizeY = 227, nResolutions = 2;
+		File file = export(grayImage(sizeX, sizeY), "untiled", -1, nResolutions,
+			true);
+		try (RandomAccessInputStream in = new RandomAccessInputStream(file
+			.getAbsolutePath()))
+		{
+			List<IFD> ifds = new TiffParser(in).getIFDs();
+			assertEquals(nResolutions, ifds.size());
+			for (IFD ifd : ifds) {
+				assertFalse("The image should not be tiled", ifd.containsKey(
+					IFD.TILE_WIDTH));
+			}
+		}
+		// Without tiling, there is no padding pixel at all
+		assertEquals(pyramidPixels(sizeX, sizeY, nResolutions), pixelBytes(file));
+
+		ImageReader reader = open(file, 0);
+		try {
+			assertEquals(sizeX, reader.getSizeX());
+			assertEquals(sizeY, reader.getSizeY());
+			byte[] plane = reader.openBytes(0);
+			for (int y = 0; y < sizeY; y++) {
+				for (int x = 0; x < sizeX; x++) {
+					assertEquals("pixel (" + x + ", " + y + ")", value(x, y), plane[y *
+						sizeX + x] & 0xFF);
 				}
 			}
 		}

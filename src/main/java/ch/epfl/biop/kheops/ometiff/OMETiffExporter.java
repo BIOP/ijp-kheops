@@ -121,6 +121,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	final Map<Integer, Integer> resToNX = new HashMap<>();
 	final Map<Integer, Integer> resToTileX = new HashMap<>();
 	final Map<Integer, Integer> resToTileY = new HashMap<>();
+	final boolean tiled; // false if the user requested a non-positive tile size
 
 	// TIFF tiles width and length have to be a multiple of 16
 	static final int TILE_GRANULARITY = 16;
@@ -224,14 +225,23 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		this.nThreads = writerSettings.nThreads;
 
 
+		// A tile size which is not strictly positive means that the user does not
+		// want any tiling: a whole plane is then written at once, and the export
+		// progress is counted in planes, see
+		// https://github.com/BIOP/ijp-kheops/issues/31
+		this.tiled = writerSettings.tileX > 0 && writerSettings.tileY > 0;
+
 		// The tile size is adapted to each resolution level, and the number of
 		// tiles is counted along the way
 		// some assertion : same dimensions for all nr and c and t
 		for (int r = 0; r < writerSettings.nResolutions; r++) {
 			int maxX = mapResToWidth.get(r);
 			int maxY = mapResToHeight.get(r);
-			int tileSizeX = adjustTileSize(writerSettings.tileX, maxX);
-			int tileSizeY = adjustTileSize(writerSettings.tileY, maxY);
+			// Without tiling, the single block covers the whole resolution level
+			int tileSizeX = tiled ? adjustTileSize(writerSettings.tileX, maxX)
+					: Math.max(maxX, 1);
+			int tileSizeY = tiled ? adjustTileSize(writerSettings.tileY, maxY)
+					: Math.max(maxY, 1);
 			resToTileX.put(r, tileSizeX);
 			resToTileY.put(r, tileSizeY);
 			resToNX.put(r, (int) Math.ceil(maxX / (double) tileSizeX));
@@ -259,7 +269,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	 * give, but shrinks the tiles to the smallest size which still covers the
 	 * image (a multiple of 16, as required by the TIFF specification).
 	 *
-	 * @param requestedTileSize tile size requested by the user, along one axis
+	 * @param requestedTileSize tile size requested by the user, along one axis -
+	 *          it has to be strictly positive, a non-positive size means that no
+	 *          tiling is wanted at all and is handled by the caller
 	 * @param imageSize size of the image along the same axis
 	 * @return the tile size which is effectively used along this axis
 	 */
@@ -521,6 +533,10 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				int tileY = resToTileY.get(r);
 				int nXTiles = resToNX.get(r);
 				int nYTiles = resToNY.get(r);
+				// Bio-formats writers disable tiling when the tile size is 0, and
+				// reject negative tile sizes
+				int writerTileX = tiled ? tileX : 0;
+				int writerTileY = tiled ? tileY : 0;
 
 				if (r < nResolutionLevels - 1) { // No need to write the last one: it won't be used for averaging computation
 					// Setup current level writer
@@ -578,8 +594,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					currentLevelWriter.setId(getFileName(r));
 					currentLevelWriter.setSeries(dstSeries);
 					if (compressTempFile) currentLevelWriter.setCompression(CompressionType.LZW.getCompression());
-					currentLevelWriter.setTileSizeX(tileX);
-					currentLevelWriter.setTileSizeY(tileY);
+					currentLevelWriter.setTileSizeX(writerTileX);
+					currentLevelWriter.setTileSizeY(writerTileY);
                     // !!!! weird. See TestOMETIFFRGBMultiScaleTile
                     currentLevelWriter.setInterleaved(r == 0);
 				}
@@ -589,8 +605,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				writer.setResolution(r);
 				// The tile size can differ between resolution levels: it is reduced
 				// when a resolution level is smaller than the requested tile size
-				writer.setTileSizeX(tileX);
-				writer.setTileSizeY(tileY);
+				writer.setTileSizeX(writerTileX);
+				writer.setTileSizeY(writerTileY);
 
 				currentLevelWritten = r;
 
