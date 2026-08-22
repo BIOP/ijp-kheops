@@ -127,7 +127,7 @@ public class CompressionBenchmark {
 			}
 			OMETiffExporter.builder().put(sources).defineMetaData("Image")
 				.defineWriteOptions().tileSize(TILE, TILE).nResolutionLevels(levels)
-				.downsample(2).compression(codec).compressTemporaryFiles(false)
+				.downsample(2).compression(codec)
 				.maxTilesInQueue(64).nThreads(THREADS).savePath(output.getAbsolutePath())
 				.create().export();
 		}

@@ -110,7 +110,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	final int nResolutionLevels;
 	final int downsample;
 	final String compression;
-	final boolean compressTempFile;
 	final File file;
 	final int nThreads;
 	final int dstSeries = 0;
@@ -248,7 +247,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		}
 
 		// Saving options
-		this.compressTempFile = writerSettings.compressTempFiles;
 		this.downsample = writerSettings.downSample;
 		this.nResolutionLevels = writerSettings.nResolutions;
 		this.file = new File(writerSettings.path);
@@ -778,14 +776,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					if (tileCodec != null && precompressible(r)) {
 						// This level's tiles reach the temporary writer already compressed
 						// for the final file, so the temporary file has to declare the same
-						// compression. Reusing them costs nothing, which makes
-						// compressTemporaryFiles moot here: the tile is compressed once
-						// whatever the option says, and a smaller temporary file is then
-						// only an advantage
+						// compression. It costs nothing: the tile is compressed once and
+						// written to both files
 						currentLevelWriter.setCompression(compression);
-					}
-					else if (compressTempFile) {
-						currentLevelWriter.setCompression(CompressionType.LZW.getCompression());
 					}
 					currentLevelWriter.setTileSizeX(writerTileX);
 					currentLevelWriter.setTileSizeY(writerTileY);
@@ -1601,7 +1594,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			final public int tileX;
 			final public int tileY;
 			final public String compression;
-			final public boolean compressTempFiles;
 			final public int maxTilesInQueue;
 			final public TaskService taskService;
 			final public int nResolutions;
@@ -1616,7 +1608,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				this.tileX = builder.tileX;
 				this.tileY = builder.tileY;
 				this.compression = builder.compression;
-				this.compressTempFiles = builder.compressTempFiles;
 				this.maxTilesInQueue = builder.maxTilesInQueue;
 				this.taskService = builder.taskService;
 				this.nResolutions = builder.nResolutions;
@@ -1636,7 +1627,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				// Default compression - uncompressed() has to be called explicitly if no
 				// compression is wanted
 				String compression = CompressionType.LZW.getCompression();
-				boolean compressTempFiles = true;
 				int maxTilesInQueue = 60;
 				TaskService taskService = null;
 				int nResolutions = 1;
@@ -1758,18 +1748,6 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 				public WriterOptionsBuilder compression(int code) {
 					this.compression = CompressionType.get(code).getCompression();
-					return this;
-				}
-
-				/**
-				 * If set to true, the temporary files will be saved compressed with LZW compression
-				 * This is particularly useful when the data contains huge blank areas, typically
-				 * found with sparse imaging in slide scanner file formats.
-				 * @param compressTempFile  temp file compress
-				 * @return write options builder
-				 */
-				public WriterOptionsBuilder compressTemporaryFiles(boolean compressTempFile) {
-					this.compressTempFiles = compressTempFile;
 					return this;
 				}
 

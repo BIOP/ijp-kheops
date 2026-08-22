@@ -45,8 +45,8 @@ import java.util.concurrent.TimeoutException;
  * <p>
  * The baseline configuration is the one the
  * {@link ch.epfl.biop.kheops.command.KheopsCommand} uses today: 1024 pixel
- * tiles, LZW compression, uncompressed temporary files, one worker thread per
- * processor, a single Bio-Formats reader for the source, and a progress monitor.
+ * tiles, LZW compression, one worker thread per processor, a single
+ * Bio-Formats reader for the source, and a progress monitor.
  * Every other configuration changes one factor only, so the difference is
  * attributable.
  * <p>
@@ -107,7 +107,6 @@ public class ExportBenchmark {
 		int readerPoolSize = 1;
 		boolean monitor = true;
 		String compression = "LZW";
-		boolean compressTempFiles = false;
 		/** Writes the full resolution level only: no temporary file, no scaling */
 		boolean singleResolution = false;
 		/** Whether the workers compress tiles, instead of the writing thread */
@@ -301,7 +300,7 @@ public class ExportBenchmark {
 			OMETiffExporter.OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder writer =
 				data.defineMetaData("Image").defineWriteOptions().tileSize(TILE, TILE)
 					.nResolutionLevels(nResolutions).downsample(2).compression(
-						config.compression).compressTemporaryFiles(config.compressTempFiles)
+						config.compression)
 					.maxTilesInQueue(MAX_TILES_IN_QUEUE).nThreads(config.nThreads).savePath(
 						output.getAbsolutePath());
 			if (config.monitor) writer.monitor(context.getService(TaskService.class));
@@ -488,7 +487,7 @@ public class ExportBenchmark {
 				OMETiffExporter.builder().put(sources).defineMetaData("Image")
 					.defineWriteOptions().tileSize(TILE, TILE).nResolutionLevels(
 						nResolutions).downsample(2).compression(config.compression)
-					.compressTemporaryFiles(config.compressTempFiles).maxTilesInQueue(
+					.maxTilesInQueue(
 						MAX_TILES_IN_QUEUE).nThreads(config.nThreads).savePath(output
 							.getAbsolutePath());
 			if (config.monitor) writer.monitor(context.getService(TaskService.class));

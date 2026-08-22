@@ -58,7 +58,7 @@ differ only in how expensive the source is to read.
 
 Java 21.0.11, Windows 11, 32 logical processors, 12 GB heap, NVMe.
 1 warmup + 3 repeats, median reported. Baseline = what `KheopsCommand` does
-today: 1024 px tiles, LZW, uncompressed temporary files, 31 worker threads,
+today: 1024 px tiles, LZW, 31 worker threads,
 **a source reader pool of 1**, progress monitor on.
 
 **The `synthetic`, `vsirgb`, `czi` and `lif` tables below were measured before
@@ -275,9 +275,10 @@ session.** Over this session the same code on the same VSI series drifted from
 table above. Two of those rows read as regressions when compared against numbers
 taken an hour earlier, and are not.
 
-`compressTemporaryFiles` no longer means anything on this path: the tile is
-compressed once whatever it says, and a smaller temporary file is then pure gain.
-It still applies to the levels that fall back to `saveBytes`, RGB above level 0.
+`compressTemporaryFiles` is gone. It let the caller compress the temporary
+files with LZW to save disk space, at the cost of compressing every tile twice.
+The tile is compressed once now and the temporary file gets those bytes, so the
+option had nothing left to choose.
 
 ### `AverageImageScaler.downsample`, 2048x2048 to 1024x1024
 

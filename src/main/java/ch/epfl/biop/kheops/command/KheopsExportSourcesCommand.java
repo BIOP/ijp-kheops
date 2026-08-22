@@ -96,9 +96,6 @@ public class KheopsExportSourcesCommand implements Command {
     @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
     String compression = "LZW";
 
-    @Parameter(label="Compress temporary files (save space on drive during pyramid building)")
-    boolean compress_temp_files = false;
-
     @Parameter
     TaskService taskService;
 
@@ -142,7 +139,6 @@ public class KheopsExportSourcesCommand implements Command {
             builder.defineWriteOptions()
                     .maxTilesInQueue(max_tiles_queue)
                     .compression(compression)
-                    .compressTemporaryFiles(compress_temp_files)
                     .nThreads(n_threads)
                     .downsample(downscaling)
                     .nResolutionLevels(n_resolution_levels)

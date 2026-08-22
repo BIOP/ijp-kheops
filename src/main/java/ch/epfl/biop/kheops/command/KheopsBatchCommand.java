@@ -83,9 +83,6 @@ public class KheopsBatchCommand implements Command {
     @Parameter( label = "Timepoints subset:", required = false )
     String subset_frames = "";
 
-    @Parameter(label="Compress temporary files (LZW)")
-    boolean compress_temp_files = false;
-
     @Parameter(label="Override voxel sizes")
     boolean override_voxel_size;
 
@@ -238,7 +235,6 @@ public class KheopsBatchCommand implements Command {
                                             OMETiffExporter exporter = builder.defineWriteOptions()
                                                     .maxTilesInQueue(numberOfBlocksComputedInAdvance)
                                                     .compression(compression)
-                                                    .compressTemporaryFiles(compress_temp_files)
                                                     .nThreads(1)
                                                     .downsample(2)
                                                     .nResolutionLevels(nResolutions)

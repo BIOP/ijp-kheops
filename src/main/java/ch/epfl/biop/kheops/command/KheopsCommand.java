@@ -96,9 +96,6 @@ public class KheopsCommand implements Command {
     //@Parameter( label = "Parallel Export When Split:", required = false )
     boolean parallel_split_export = false; // Couldn't observe any performance gain with true
 
-    @Parameter(label="Compress temporary files (LZW)")
-    boolean compress_temp_files = false;
-
     @Parameter(label="Override voxel sizes")
     boolean override_voxel_size;
 
@@ -293,7 +290,6 @@ public class KheopsCommand implements Command {
                                         OMETiffExporter exporter = builder.defineWriteOptions()
                                                 .maxTilesInQueue(finalParallelProcess ? numberOfBlocksComputedInAdvanceWhenParallel : numberOfBlocksComputedInAdvance)
                                                 .compression(compression)
-                                                .compressTemporaryFiles(compress_temp_files)
                                                 .nThreads(finalParallelProcess ? 1 : nThreads)
                                                 .downsample(2)
                                                 .nResolutionLevels(nResolutions)

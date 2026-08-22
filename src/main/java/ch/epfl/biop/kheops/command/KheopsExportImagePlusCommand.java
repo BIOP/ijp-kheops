@@ -57,9 +57,6 @@ public class KheopsExportImagePlusCommand implements Command {
     @Parameter( label = "Timepoints subset:", required = false )
     String subset_frames = "";
 
-    @Parameter(label="Compress temporary files (LZW)")
-    boolean compress_temp_files = false;
-
     @Parameter
     TaskService taskService;
 
@@ -72,7 +69,6 @@ public class KheopsExportImagePlusCommand implements Command {
                 .compression(compression)
                 .taskService(taskService)
                 .createMultipleResolutions(true)
-                .compressTemporaryFiles(compress_temp_files)
                 .rangeT(subset_frames)
                 .rangeC(subset_channels)
                 .rangeZ(subset_slices)

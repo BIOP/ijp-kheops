@@ -54,7 +54,6 @@ public class ImagePlusToOMETiff {
         private int tileSize = 512;
         private int nThreads = Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
         private int numberOfBlocksComputedInAdvance = 64;
-        private boolean compressTemporaryFiles = false;
         private int downsampleFactor = 2;
         private String rangeC="";
         private String rangeZ="";
@@ -94,11 +93,6 @@ public class ImagePlusToOMETiff {
 
         public Builder numberOfBlocksComputedInAdvance(int numberOfBlocksComputedInAdvance) {
             this.numberOfBlocksComputedInAdvance = numberOfBlocksComputedInAdvance;
-            return this;
-        }
-
-        public Builder compressTemporaryFiles(boolean compressTemporaryFiles) {
-            this.compressTemporaryFiles = compressTemporaryFiles;
             return this;
         }
 
@@ -142,7 +136,6 @@ public class ImagePlusToOMETiff {
         private final int tileSize;
         private final int nThreads;
         private final int numberOfBlocksComputedInAdvance;
-        private final boolean compressTemporaryFiles;
         private final int downsampleFactor;
         private final String rangeC, rangeZ, rangeT;
         private final Consumer<String> customLogger;
@@ -156,7 +149,6 @@ public class ImagePlusToOMETiff {
             this.tileSize = builder.tileSize;
             this.nThreads = builder.nThreads;
             this.numberOfBlocksComputedInAdvance = builder.numberOfBlocksComputedInAdvance;
-            this.compressTemporaryFiles = builder.compressTemporaryFiles;
             this.downsampleFactor = builder.downsampleFactor;
             this.customLogger = builder.customLogger;
             this.rangeC = builder.rangeC;
@@ -218,7 +210,6 @@ public class ImagePlusToOMETiff {
                     OMETiffExporter exporter = builder.defineWriteOptions()
                             .maxTilesInQueue(numberOfBlocksComputedInAdvance)
                             .compression(compression)
-                            .compressTemporaryFiles(compressTemporaryFiles)
                             .nThreads(nThreads)
                             .downsample(downsampleFactor)
                             .nResolutionLevels(nResolutions)

@@ -112,7 +112,7 @@ public class OMETiffExporterTest {
 		OMETiffExporter.OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder builder =
 			OMETiffExporter.builder().putXYZRAI((RandomAccessibleInterval) image)
 				.defineMetaData("Image").defineWriteOptions().tileSize(tileSize,
-					tileSize).nResolutionLevels(nResolutions).compressTemporaryFiles(false)
+					tileSize).nResolutionLevels(nResolutions)
 				.savePath(file.getAbsolutePath());
 		if (uncompressed) builder.uncompressed();
 		builder.create().export();
@@ -308,7 +308,7 @@ public class OMETiffExporterTest {
 		File file = new File(folder.getRoot(), "rgb.ome.tiff");
 		OMETiffExporter.builder().putXYZRAI(rgbImage(sizeX, sizeY)).defineMetaData(
 			"Image").defineWriteOptions().tileSize(1024, 1024).nResolutionLevels(
-				nResolutions).uncompressed().compressTemporaryFiles(false).savePath(file
+				nResolutions).uncompressed().savePath(file
 					.getAbsolutePath()).create().export();
 
 		long rawBytes = 3 * pyramidPixels(sizeX, sizeY, nResolutions);
@@ -562,7 +562,7 @@ public class OMETiffExporterTest {
 		File file = new File(folder.getRoot(), "rgbpyr.ome.tiff");
 		OMETiffExporter.builder().putXYZRAI(rgbImage(sizeX, sizeY)).defineMetaData(
 			"Image").defineWriteOptions().tileSize(64, 64).nResolutionLevels(2)
-			.uncompressed().compressTemporaryFiles(false).savePath(file
+			.uncompressed().savePath(file
 				.getAbsolutePath()).create().export();
 
 		ImageReader reader = open(file, 1);
@@ -616,7 +616,7 @@ public class OMETiffExporterTest {
 			}
 		}
 		data.defineMetaData("Image").defineWriteOptions().tileSize(64, 64)
-			.nResolutionLevels(2).uncompressed().compressTemporaryFiles(false).savePath(
+			.nResolutionLevels(2).uncompressed().savePath(
 				file.getAbsolutePath()).create().export();
 
 		ImageReader reader = open(file, 0);
@@ -665,7 +665,7 @@ public class OMETiffExporterTest {
 		}
 		return data.defineMetaData("Image").defineWriteOptions().tileSize(tileSize,
 			tileSize).nResolutionLevels(nResolutions).uncompressed()
-			.compressTemporaryFiles(false).savePath(file.getAbsolutePath()).create();
+			.savePath(file.getAbsolutePath()).create();
 	}
 
 	/**
