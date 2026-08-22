@@ -179,6 +179,47 @@ five datasets.
 Do not expect this to hold on a spinning disk or on network storage: the two
 streams then share the bandwidth they have here in surplus.
 
+### Pre-compressed tiles
+
+Bio-Formats writers implement `loci.formats.ICompressedTileWriter`: `getCodec()`
+hands out the codec and `saveCompressedBytes` takes a tile the caller already
+compressed. The workers therefore compress, and the writing thread only writes.
+Same 1 warmup + 3 repeats, LZW, reader pool 8:
+
+| dataset | writer compresses | workers compress | speedup |
+| --- | ---: | ---: | ---: |
+| in memory, 8000x6000 x 3 uint16 | 4244 ms | 1860 ms | **x2.28** |
+| VSI `10x_01` | 4493 ms | 2383 ms | **x1.89** |
+| VSI RGB overview | 5733 ms | 4695 ms | **x1.22** |
+| CZI series 0, single level | 1847 ms | 320 ms | **x5.77** |
+| LIF series 0, single level | 359 ms | 147 ms | **x2.44** |
+
+Pixels hash identically both ways on all five datasets, and on the CZI every
+IFD - tile geometry, byte counts **and** offsets - is identical, so the
+compressed bytes are the same and land in the same place.
+
+Two effects, not one. LZW itself is ~40 % of a writer bound export: in memory,
+4244 ms with LZW against 2505 ms uncompressed. The rest is an accident of
+`TiffSaver.writeImage`: its bulk copy branch needs
+`tileH * tileW * channels * bpp == buf.length`, which an **edge tile never
+satisfies**, so a partial tile falls into a triple loop that copies and zero pads
+it one `writeByte` at a time, on the writing thread. That is why the CZI wins
+most: 1500x1000 with 752x1008 tiles means *every* tile is a partial one. Padding
+with `System.arraycopy` on a worker instead is worth more there than the codec.
+
+**RGB above resolution level 0 is excluded.** `saveCompressedBytes` writes one
+strip, and the exporter turns interleaving off above level 0, where TIFF then
+wants one strip per sample (planar configuration 2). Written as a single strip,
+such a tile yields an IFD claiming three tiles at offsets 0 - silently corrupt,
+and caught by `rgbMultiDimensionalExportIsValid`. Those levels keep compressing
+on the writing thread, which is why the RGB overview gains least; level 0, ~75 %
+of the pixels, still goes the fast way.
+
+What a pre-compressed tile must contain is not documented by the interface - it
+is whatever `TiffSaver.writeImage` would have built. `-Dkheops.precompress=false`
+gives the compression back to the writer if a future Bio-Formats diverges.
+Reproduce with the `writer compresses` row of `ExportBenchmark`.
+
 ### `AverageImageScaler.downsample`, 2048x2048 to 1024x1024
 
 | pixels | per tile | throughput |
@@ -256,9 +297,9 @@ less temporary data - which costs a full width band of the next level in RAM,
 plane. That is a rewrite of the pyramid path for ~1.2x on top of what is already
 gained, so it is not obviously worth it.
 
-**Compression is ~46 % of the writer bound time**, but no better codec is
-available: zlib is four times slower than LZW for 13 % smaller files. LZW should
-stay the default.
+**Compression was ~46 % of the writer bound time**, and now runs on the worker
+threads instead (see above). No better codec is available anyway: zlib is four
+times slower than LZW for 13 % smaller files. LZW stays the default.
 
 **Two things that look promising in the source are not.** Reporting progress
 once per tile costs ~1 %: at 1024 px tiles a realistic image has hundreds to
@@ -277,8 +318,10 @@ default configuration.
 3. Remove what is left of the temporary file round trip, by storing the
    downsampled level rather than a copy of the current one. ~1.2x on top, a real
    rewrite, and it puts a full width band of the next level in RAM.
-4. Leave the codec, the progress reporting and the scaler alone, performance
-   wise. The scaler still needs its float bug fixed, for correctness.
+4. ~~Take the compression off the writing thread.~~ **Done**: the workers hand
+   the writer tiles they already compressed, x1.22 to x5.77.
+5. Leave the codec choice, the progress reporting and the scaler alone,
+   performance wise. The scaler still needs its float bug fixed, for correctness.
 
 ## A deadlock found along the way
 

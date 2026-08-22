@@ -28,6 +28,8 @@ import ch.epfl.biop.kheops.CZTRange;
 import ch.epfl.biop.kheops.KheopsHelper;
 import loci.common.image.IImageScaler;
 import loci.formats.MetadataTools;
+import loci.formats.codec.Codec;
+import loci.formats.codec.CodecOptions;
 import loci.formats.in.OMETiffReader;
 import loci.formats.meta.IMetadata;
 import loci.formats.meta.IPyramidStore;
@@ -143,9 +145,25 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	final boolean isFloat;
 	final int bytesPerPixel;
 
+	/** Samples per pixel: a TIFF RGB tile carries its three samples in one tile */
+	final int samplesPerPixel;
+
+	/** How each resolution level has to be compressed, see {@link #codecOptions} */
+	final Map<Integer, CodecOptions> resToCodecOptions = new HashMap<>();
+
 	// ------------ Fields updated live during the saving
 	final AtomicLong writtenTiles = new AtomicLong();
 	final Map<TileIterator.IntsKey, byte[]> computedBlocks;
+	/**
+	 * The same tiles as {@code computedBlocks}, compressed by the worker threads.
+	 * Empty when the writer compresses them itself, see {@link #tileCodec}
+	 */
+	final Map<TileIterator.IntsKey, byte[]> compressedBlocks;
+	/**
+	 * The codec the workers compress tiles with, or null to leave the
+	 * compression to the writer. Set once, before the workers are started
+	 */
+	volatile Codec tileCodec;
 	final TileIterator tileIterator;
 	final Task writerTask;
 	final Object tileLock = new Object();
@@ -204,6 +222,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					pixelInstance.getClass().getName());
 		}
 
+		samplesPerPixel = isRGB ? 3 : 1;
+
 		width = originalOmeMeta.getPixelsSizeX(originalSeries).getValue();
 		height = originalOmeMeta.getPixelsSizeY(originalSeries).getValue();
 
@@ -259,12 +279,44 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			resToNY.put(r, (int) Math.ceil(maxY / (double) tileSizeY));
 		}
 
+		// Every resolution level compresses with its own tile size
+		for (int r = 0; r < writerSettings.nResolutions; r++) {
+			resToCodecOptions.put(r, codecOptions(r));
+		}
+
 		// Initialise transient variables for exporting
 		writtenTiles.set(0);
 		tileIterator = new TileIterator(nResolutionLevels, sizeT, sizeC, sizeZ,
 				resToNY, resToNX, writerSettings.maxTilesInQueue);
 		computedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1); // should be enough for avoiding overlap of hash
+		compressedBlocks = new ConcurrentHashMap<>(nThreads * 3 + 1);
 
+	}
+
+	/**
+	 * The options a tile of this resolution level has to be compressed with, to
+	 * be accepted by {@link OMETiffWriter#saveCompressedBytes}.
+	 * <p>
+	 * This mirrors what the writer does on its own thread when it compresses a
+	 * tile itself: {@code TiffCompression.getCompressionCodecOptions} builds
+	 * these from the IFD, then {@code TiffSaver.writeImage} overrides the width,
+	 * the height and the channel count with the tile geometry. The planar
+	 * configuration is never set by the writer and defaults to 1, so a tile is
+	 * always one interleaved strip.
+	 * <p>
+	 * Getting any of this wrong does not fail loudly, it writes a corrupt tile -
+	 * hence the pixel comparison in {@code BENCHMARKS.md}.
+	 */
+	private CodecOptions codecOptions(int r) {
+		CodecOptions options = new CodecOptions(CodecOptions.getDefaultOptions());
+		options.width = resToTileX.get(r);
+		options.height = resToTileY.get(r);
+		options.bitsPerSample = bytesPerPixel * 8;
+		options.channels = samplesPerPixel;
+		options.littleEndian = isLittleEndian;
+		options.interleaved = true;
+		options.signed = false;
+		return options;
 	}
 
 	/**
@@ -343,6 +395,117 @@ public class OMETiffExporter<T extends NumericType<T>> {
 						endY - 1 })), pixelInstance);
 	}
 
+	/**
+	 * The codec the worker threads should compress tiles with, so that the
+	 * writing thread only has to write them, through
+	 * {@code loci.formats.ICompressedTileWriter}. Compressing is ~40 % of a
+	 * writer bound export, and the workers are idle while the writing thread is
+	 * the bottleneck.
+	 * <p>
+	 * What a pre-compressed tile has to contain is not spelled out by the
+	 * interface: it is whatever {@code TiffSaver.writeImage} would have produced,
+	 * which this class reproduces in {@link #pad} and {@link #codecOptions}. A
+	 * future version of bio-formats could change that and corrupt the output
+	 * silently, so {@code -Dkheops.precompress=false} switches the whole thing
+	 * off and gives the compression back to the writer.
+	 *
+	 * @return the codec, or null to leave the compression to the writer
+	 */
+	private Codec precompressionCodec(OMETiffWriter writer) {
+		// A pre-compressed tile has to be aligned on the tile grid, and
+		// saveCompressedBytes computes x % tileSizeX: an untiled export, where a
+		// tile is a whole plane and the tile size is 0, is out
+		if (!tiled) return null;
+		if (System.getProperty("kheops.precompress", "true").equals("false")) {
+			logger.debug(file.getName() + " pre-compression disabled by property");
+			return null;
+		}
+		try {
+			// Null for a compression this version of bio-formats has no codec for
+			return writer.getCodec();
+		}
+		catch (UnsupportedOperationException e) {
+			logger.debug(file.getName() +
+					" writes its own compressed tiles: no codec available (" + e
+							.getMessage() + ")");
+			return null;
+		}
+	}
+
+	/**
+	 * Publishes a tile computed by a worker thread. The compressed copy is
+	 * stored first, so that a tile visible in {@code computedBlocks} - which is
+	 * what the writing thread waits on - always has its compressed copy ready.
+	 */
+	private void publishTile(TileIterator.IntsKey key, byte[] tile)
+			throws Exception {
+		Codec codec = tileCodec;
+		if (codec != null && precompressible(key.array[0])) {
+			compressedBlocks.put(key, compressTile(key, tile, codec));
+		}
+		computedBlocks.put(key, tile);
+	}
+
+	/**
+	 * Whether a tile of this resolution level may be handed over compressed.
+	 * <p>
+	 * {@code saveCompressedBytes} takes a single {@code byte[]}, and writes it as
+	 * a single TIFF strip. A tile is one strip, except when the writer stores the
+	 * samples of an RGB tile as three separate planes - planar configuration 2,
+	 * one strip per sample. That is what happens above resolution level 0, where
+	 * this exporter turns interleaving off, and at level 0 too if the source is
+	 * not interleaved. Written as a single strip, such a tile produces an IFD
+	 * claiming three tiles at offsets 0, which is silently corrupt.
+	 * <p>
+	 * Those levels keep compressing on the writing thread. For an RGB pyramid
+	 * that still leaves level 0, which is ~75 % of the pixels.
+	 */
+	private boolean precompressible(int r) {
+		return samplesPerPixel == 1 || (r == 0 && isInterleaved);
+	}
+
+	/**
+	 * Compresses a tile the way the writer would, so that it can be handed over
+	 * with {@link OMETiffWriter#saveCompressedBytes}. Runs on a worker thread:
+	 * compressing is about 40 % of the export and the writing thread is the
+	 * bottleneck, while the workers wait.
+	 */
+	private byte[] compressTile(TileIterator.IntsKey key, byte[] tile, Codec codec)
+			throws Exception {
+		int r = key.array[0];
+		int fullTileX = resToTileX.get(r);
+		int fullTileY = resToTileY.get(r);
+		int startX = key.array[5] * fullTileX;
+		int startY = key.array[4] * fullTileY;
+		int tileWidth = Math.min(fullTileX, mapResToWidth.get(r) - startX);
+		int tileHeight = Math.min(fullTileY, mapResToHeight.get(r) - startY);
+		// A fresh copy per call: a codec is free to write into the options it is
+		// given, and several workers compress at the same time
+		CodecOptions options = new CodecOptions(resToCodecOptions.get(r));
+		return codec.compress(pad(tile, tileWidth, tileHeight, fullTileX,
+				fullTileY), options);
+	}
+
+	/**
+	 * A TIFF tile is always stored full size, zero padded at the right and the
+	 * bottom edge of the image. The writer pads a partial tile itself - one
+	 * {@code writeByte} call per byte, on the writing thread - but a
+	 * pre-compressed tile has to arrive padded already.
+	 */
+	private byte[] pad(byte[] tile, int tileWidth, int tileHeight, int fullTileX,
+			int fullTileY) {
+		if (tileWidth == fullTileX && tileHeight == fullTileY) return tile;
+		int bytesPerSample = bytesPerPixel * samplesPerPixel;
+		byte[] padded = new byte[fullTileX * fullTileY * bytesPerSample];
+		int tileRowLength = tileWidth * bytesPerSample;
+		int fullRowLength = fullTileX * bytesPerSample;
+		for (int row = 0; row < tileHeight; row++) {
+			System.arraycopy(tile, row * tileRowLength, padded, row * fullRowLength,
+					tileRowLength);
+		}
+		return padded;
+	}
+
 	private void computeTile(TileIterator.IntsKey key) throws Exception {
 		int r = key.array[0];
 		int t = key.array[1];
@@ -359,7 +522,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 		if (r == 0) {
 			localResolution.set(r);
-			computedBlocks.put(key, getBytesFromRAIs(key));
+			publishTile(key, getBytesFromRAIs(key));
 		}
 		else {
 			// Wait for the previous resolution level to be written !
@@ -408,7 +571,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 						(int) effTileSizeX, (int) effTileSizeY, downsample, bytesPerPixel,
 						isLittleEndian, isFloat, isRGB ? 3 : 1, false);
 
-				computedBlocks.put(key, tileByte);
+				publishTile(key, tileByte);
 			}
 		}
 	}
@@ -518,6 +681,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			writer.setSeries(dstSeries);
 			writer.setCompression(compression);
 			writer.setInterleaved(omeMeta.getPixelsInterleaved(dstSeries));
+			// Compressing a tile is ~40 % of a writer bound export and does not
+			// have to happen on the writing thread. Set before the workers start
+			tileCodec = precompressionCodec(writer);
 			totalTiles = 0;
 
 			// Count total number of tiles
@@ -689,8 +855,15 @@ public class OMETiffExporter<T extends NumericType<T>> {
 												tile, tileStartX, tileStartY, tileWidth, tileHeight));
 									}
 
-									writer.saveBytes(plane, tile, tileStartX, tileStartY, tileWidth,
-											tileHeight);
+									byte[] compressed = compressedBlocks.remove(key);
+									if (compressed != null) {
+										writer.saveCompressedBytes(plane, compressed, tileStartX,
+												tileStartY, tileWidth, tileHeight);
+									}
+									else {
+										writer.saveBytes(plane, tile, tileStartX, tileStartY,
+												tileWidth, tileHeight);
+									}
 
 									computedBlocks.remove(key);
 									tileIterator.decrementQueue();
@@ -727,6 +900,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				if (!result) logger.warn("File " + getFileName(r) + " couldn't be deleted.");
 			}
 			computedBlocks.clear();
+			compressedBlocks.clear();
 			// Closing the file can take a huge amount of time - the planned time can be displayed
 			// if a task monitor has been given
 			if (writerTask != null) {

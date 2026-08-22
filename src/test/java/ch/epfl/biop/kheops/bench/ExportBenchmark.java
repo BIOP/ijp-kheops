@@ -110,9 +110,16 @@ public class ExportBenchmark {
 		boolean compressTempFiles = false;
 		/** Writes the full resolution level only: no temporary file, no scaling */
 		boolean singleResolution = false;
+		/** Whether the workers compress tiles, instead of the writing thread */
+		boolean precompress = true;
 
 		Config(String label) {
 			this.label = label;
+		}
+
+		Config writerCompresses() {
+			precompress = false;
+			return this;
 		}
 
 		Config noPyramid() {
@@ -148,6 +155,9 @@ public class ExportBenchmark {
 			DEFAULT_THREADS));
 		configs.add(new Config("no progress monitor").noMonitor());
 		configs.add(new Config("uncompressed").uncompressed());
+		// The exporter hands the writer tiles the workers already compressed. This
+		// row is what the writing thread costs when it compresses them itself
+		configs.add(new Config("writer compresses").writerCompresses());
 		configs.add(new Config("1 worker thread").threads(1));
 		configs.add(new Config("reader pool + no monitor").readerPool(
 			DEFAULT_THREADS).noMonitor());
@@ -281,19 +291,39 @@ public class ExportBenchmark {
 		int nResolutions, Config config, File output, Context context)
 		throws Exception
 	{
-		OMETiffExporter.OMETiffExporterBuilder.Data.DataBuilder data =
-			OMETiffExporter.builder();
-		for (int c = 0; c < channels.size(); c++) {
-			data.putXYZRAI(c, 0, (RandomAccessibleInterval) channels.get(c));
+		applyPrecompression(config);
+		try {
+			OMETiffExporter.OMETiffExporterBuilder.Data.DataBuilder data =
+				OMETiffExporter.builder();
+			for (int c = 0; c < channels.size(); c++) {
+				data.putXYZRAI(c, 0, (RandomAccessibleInterval) channels.get(c));
+			}
+			OMETiffExporter.OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder writer =
+				data.defineMetaData("Image").defineWriteOptions().tileSize(TILE, TILE)
+					.nResolutionLevels(nResolutions).downsample(2).compression(
+						config.compression).compressTemporaryFiles(config.compressTempFiles)
+					.maxTilesInQueue(MAX_TILES_IN_QUEUE).nThreads(config.nThreads).savePath(
+						output.getAbsolutePath());
+			if (config.monitor) writer.monitor(context.getService(TaskService.class));
+			writer.create().export();
 		}
-		OMETiffExporter.OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder writer =
-			data.defineMetaData("Image").defineWriteOptions().tileSize(TILE, TILE)
-				.nResolutionLevels(nResolutions).downsample(2).compression(
-					config.compression).compressTemporaryFiles(config.compressTempFiles)
-				.maxTilesInQueue(MAX_TILES_IN_QUEUE).nThreads(config.nThreads).savePath(
-					output.getAbsolutePath());
-		if (config.monitor) writer.monitor(context.getService(TaskService.class));
-		writer.create().export();
+		finally {
+			clearPrecompression();
+		}
+	}
+
+	/**
+	 * Pre-compression is switched off through a system property rather than a
+	 * writer option: it is an escape hatch, not a feature, see
+	 * {@code OMETiffExporter.precompressionCodec}.
+	 */
+	private static void applyPrecompression(Config config) {
+		System.setProperty("kheops.precompress", Boolean.toString(
+			config.precompress));
+	}
+
+	private static void clearPrecompression() {
+		System.clearProperty("kheops.precompress");
 	}
 
 	/**
@@ -446,6 +476,7 @@ public class ExportBenchmark {
 	{
 		KheopsHelper.SourcesInfo info = openSources(input, config.readerPoolSize,
 			context);
+		applyPrecompression(config);
 		try {
 			SourceAndConverter[] sources = sourcesOfSeries(info, input, series);
 			RandomAccessibleInterval<?> model = sources[0].getSpimSource().getSource(0,
@@ -464,6 +495,7 @@ public class ExportBenchmark {
 			writer.create().export();
 		}
 		finally {
+			clearPrecompression();
 			shutDown(info);
 		}
 	}
