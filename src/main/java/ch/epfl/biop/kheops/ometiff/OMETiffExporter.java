@@ -65,8 +65,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static ch.epfl.biop.kheops.ometiff.SourceToByteArray.validPixelType;
@@ -88,7 +91,7 @@ import static ch.epfl.biop.kheops.ometiff.SourceToByteArray.validPixelType;
 // original script https://github.com/ome/bio-formats-examples/blob/master/src/main/java/GeneratePyramidResolutions.java
 // RAAAAH https://forum.image.sc/t/save-ome-tiff-as-8-bit-rgb-for-qupath/61281/3
 // TODO : modify scale Z pixel size with range subset ?
-// Perf potential improvement : dual writing current res level and final
+// The two writes happen in parallel, see AsyncTileWriter and issue #12
 
 public class OMETiffExporter<T extends NumericType<T>> {
 
@@ -125,6 +128,14 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 	// TIFF tiles width and length have to be a multiple of 16
 	static final int TILE_GRANULARITY = 16;
+
+	/**
+	 * How many tiles may wait to be written to the temporary file, see
+	 * {@link AsyncTileWriter}. Each one is a tile array kept alive on top of
+	 * {@code maxTilesInQueue}, and staying one tile ahead is enough, so this is
+	 * small on purpose. Untiled exports use 1: there, a tile is a whole plane.
+	 */
+	static final int TEMP_WRITE_QUEUE_DEPTH = 4;
 
 	final boolean isLittleEndian;
 	final boolean isRGB;
@@ -447,6 +458,11 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		// file on every write. Temporary, see ch.epfl.biop.kheops.ometiff.omecommon.
 		try (ch.epfl.biop.kheops.ometiff.omecommon.FastOutput fastOutput =
 				new ch.epfl.biop.kheops.ometiff.omecommon.FastOutput(file)) {
+		// Writes the temporary file in parallel with the final one, see #12. Only
+		// a pyramid has a temporary file at all
+		AsyncTileWriter tempTileWriter = nResolutionLevels > 1
+				? new AsyncTileWriter(file.getName(), tiled ? TEMP_WRITE_QUEUE_DEPTH : 1)
+				: null;
 		try { // try... finally statement -> makes sure to finish the task in case of errors
 			if (writerTask != null) writerTask.setStatusMessage("Exporting " + file
 					.getName() + " with " + nThreads + " threads.");
@@ -656,14 +672,25 @@ public class OMETiffExporter<T extends NumericType<T>> {
 										}
 									}
 
+									byte[] tile = computedBlocks.get(key);
+									int tileStartX = (int) startX;
+									int tileStartY = (int) startY;
+									int tileWidth = (int) (endX - startX);
+									int tileHeight = (int) (endY - startY);
+
 									if (r < nResolutionLevels - 1) {
-										currentLevelWriter.saveBytes(plane, computedBlocks.get(key),
-												(int) startX, (int) startY, (int) (endX - startX),
-												(int) (endY - startY));
+										// Hands the tile to the temporary writer and moves on: it is
+										// written while the final writer compresses the same tile.
+										// The array stays alive through the lambda, so removing the
+										// tile from computedBlocks below is safe
+										final OMETiffWriter levelWriter = currentLevelWriter;
+										final int tilePlane = plane;
+										tempTileWriter.submit(() -> levelWriter.saveBytes(tilePlane,
+												tile, tileStartX, tileStartY, tileWidth, tileHeight));
 									}
 
-									writer.saveBytes(plane, computedBlocks.get(key), (int) startX,
-											(int) startY, (int) (endX - startX), (int) (endY - startY));
+									writer.saveBytes(plane, tile, tileStartX, tileStartY, tileWidth,
+											tileHeight);
 
 									computedBlocks.remove(key);
 									tileIterator.decrementQueue();
@@ -675,6 +702,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					}
 				}
 				if (r < nResolutionLevels - 1) {
+					// The next level reads this file back, so every tile has to be in
+					// it before it is closed
+					tempTileWriter.awaitDrain();
 					currentLevelWriter.close();
 				}
 			}
@@ -730,6 +760,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				}
 			}
 		} finally {
+			if (tempTileWriter != null) tempTileWriter.close();
 			if (writerTask != null) writerTask.finish();
 		}
 		}
@@ -750,6 +781,125 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	private String getFileName(int r) {
 		return FilenameUtils.removeExtension(file.getAbsolutePath()) + "_lvl_" + r +
 				".ome.tiff";
+	}
+
+	/**
+	 * Writes tiles to the temporary single resolution file on a thread of its
+	 * own, so that the write overlaps with the write of the same tile to the
+	 * final pyramidal file.
+	 * <p>
+	 * Every tile of a resolution level below the last one is written twice: once
+	 * to the temporary file the next level is downsampled from, and once to the
+	 * final file. Both writes used to run one after the other on the single
+	 * thread which drives the export, and the temporary one was measured at 19 to
+	 * 25 % of the export time, see
+	 * <a href="https://github.com/BIOP/ijp-kheops/issues/12">issue #12</a>. It
+	 * writes uncompressed bytes to a different file, so nothing prevents it from
+	 * running while the final writer compresses the same tile.
+	 * <p>
+	 * The queue is deliberately short. The temporary write is about three times
+	 * cheaper than the final one, so the thread only ever has to stay one tile
+	 * ahead, and every queued tile is one more tile array kept alive on top of
+	 * the {@code maxTilesInQueue} the exporter already allows.
+	 */
+	private static class AsyncTileWriter implements AutoCloseable {
+
+		/** A write to perform on the writing thread */
+		interface Write {
+
+			void run() throws Exception;
+		}
+
+		/** Makes the thread return; never run */
+		private static final Write END = () -> {};
+
+		private final ArrayBlockingQueue<Write> queue;
+		private final Thread thread;
+		/** The first failure, rethrown to the thread driving the export */
+		private final AtomicReference<Exception> failure = new AtomicReference<>();
+
+		AsyncTileWriter(String name, int queueDepth) {
+			queue = new ArrayBlockingQueue<>(queueDepth);
+			thread = new Thread(this::writeUntilDone, "Kheops temp writer " + name);
+			thread.setDaemon(true);
+			thread.start();
+		}
+
+		private void writeUntilDone() {
+			while (true) {
+				Write write;
+				try {
+					write = queue.take();
+				}
+				catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					return;
+				}
+				if (write == END) return;
+				try {
+					write.run();
+				}
+				catch (Exception e) {
+					// Only the first one is of interest: the writes which follow it
+					// fail because the writer is already broken. The export stops at
+					// the next submit or drain anyway
+					failure.compareAndSet(null, e);
+				}
+			}
+		}
+
+		/** Blocks while the queue is full, which is what bounds the memory */
+		void submit(Write write) throws Exception {
+			throwIfFailed();
+			try {
+				queue.put(write);
+			}
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw e;
+			}
+		}
+
+		/**
+		 * Returns once everything submitted so far has been written. Has to be
+		 * called before the temporary writer is closed, and before the next
+		 * resolution level reads the file back.
+		 */
+		void awaitDrain() throws Exception {
+			CountDownLatch written = new CountDownLatch(1);
+			try {
+				queue.put(written::countDown);
+				written.await();
+			}
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+				throw e;
+			}
+			throwIfFailed();
+		}
+
+		private void throwIfFailed() throws Exception {
+			Exception failed = failure.get();
+			if (failed != null) throw failed;
+		}
+
+		/**
+		 * Stops the thread. Pending tiles are dropped rather than written, which
+		 * only ever happens on cancellation: the normal path drains at the end of
+		 * every resolution level. A write already in flight is left to finish, so
+		 * that no file is closed under it.
+		 */
+		@Override
+		public void close() {
+			while (!queue.offer(END))
+				queue.poll();
+			try {
+				thread.join();
+			}
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+		}
 	}
 
 	public static OMETiffExporterBuilder.Data.DataBuilder builder() {

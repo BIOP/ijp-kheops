@@ -140,6 +140,45 @@ overhead (`no pyramid` equals the baseline because there is no pyramid). Only
 | zlib / Deflate | 27313 ms | 162 MB |
 | Uncompressed | 4937 ms | 343 MB |
 
+### Parallel temporary writer (issue #12)
+
+Every tile of a level below the last is written twice: to the temporary file the
+next level is downsampled from, and to the final file. Both writes used to run
+one after the other on the single writing thread. Timing them separately, on a
+warmed-up export with the reader pool already raised:
+
+| dataset | total | temp save | main save | waiting for tiles |
+| --- | ---: | ---: | ---: | ---: |
+| in memory, 8000x6000 x 3 ch | 6338 ms | 1559 ms (25%) | 4304 ms (68%) | 5% |
+| VSI `10x_01` | 6514 ms | 1406 ms (22%) | 4250 ms (65%) | 9% |
+| VSI RGB overview | 7473 ms | 1383 ms (19%) | 4854 ms (65%) | 11% |
+| CZI series 0, single level | 2066 ms | - | 2000 ms (97%) | 0% |
+
+The two writes are **not** symmetric, which is why the ceiling is not the factor
+2 the issue assumed: the final writer compresses (LZW) and keeps the pyramid's
+SubIFD bookkeeping, the temporary one writes raw bytes. At a ratio of ~3:1,
+`(a+b)/max(a,b)` is ~1.3. Low "waiting for tiles" is what makes the saving
+realisable: the writing thread is saturated, the workers are not the limit.
+
+Handing the temporary write to one thread with a short queue
+(`OMETiffExporter.AsyncTileWriter`), measured end to end, 1 warmup + 3 repeats:
+
+| dataset | before | after | speedup |
+| --- | ---: | ---: | ---: |
+| in memory, 8000x6000 x 3 ch | 5370 ms | 4231 ms | **x1.27** |
+| VSI `10x_01` | 5434 ms | 4405 ms | **x1.23** |
+| VSI RGB overview | 6573 ms | 5589 ms | **x1.18** |
+| CZI series 0, single level | 1826 ms | 1829 ms | x1.00 |
+| LIF series 0, single level | 345 ms | 354 ms | x0.97 |
+
+A single resolution level has no temporary file, so it gains nothing - the last
+two rows are noise, and are there to show the path is untouched. The pixels of
+every plane of every resolution level hash identically before and after on all
+five datasets.
+
+Do not expect this to hold on a spinning disk or on network storage: the two
+streams then share the bandwidth they have here in surplus.
+
 ### `AverageImageScaler.downsample`, 2048x2048 to 1024x1024
 
 | pixels | per tile | throughput |
@@ -204,8 +243,18 @@ clearest: writing level 0 only takes 3459 ms of the 6787 ms baseline, although
 the pyramid adds just ~33 % more pixels. At the efficiency of level 0 the whole
 pyramid should cost ~4.6 s, so roughly **2 s, about a third of the export**, is
 the temporary file round trip - every level is written a second time, reopened,
-and read back tile by tile. This is the `Perf potential improvement : dual
-writing current res level and final` note at the top of `OMETiffExporter`.
+and read back tile by tile.
+
+**Half of that round trip is now overlapped rather than removed.** The temporary
+write, 19-25 % of the export, runs on its own thread since issue #12, worth
+x1.18 to x1.27 (table above). What is left of the round trip is the reopening and
+the tile by tile read back, both on the worker threads, which are not the
+bottleneck. Removing the round trip altogether means storing the *downsampled*
+level in the temporary file instead of a copy of the current one - four times
+less temporary data - which costs a full width band of the next level in RAM,
+`width x tileY x bytesPerPixel` at the peak, ~100 MB for a 100 000 px wide uint16
+plane. That is a rewrite of the pyramid path for ~1.2x on top of what is already
+gained, so it is not obviously worth it.
 
 **Compression is ~46 % of the writer bound time**, but no better codec is
 available: zlib is four times slower than LZW for 13 % smaller files. LZW should
@@ -222,8 +271,13 @@ default configuration.
 
 1. ~~Raise the source reader pool size.~~ **Done**: `KheopsCommand` now uses
    `Math.min(nThreads, 8)` readers instead of 1.
-2. Remove the temporary file round trip. ~30 %, but a real rewrite.
-3. Leave the codec, the progress reporting and the scaler alone, performance
+2. ~~Overlap the two writes of a tile.~~ **Done**: the temporary file is written
+   on its own thread, `OMETiffExporter.AsyncTileWriter`, x1.18 to x1.27 on a
+   pyramid and nothing on a single level export (issue #12).
+3. Remove what is left of the temporary file round trip, by storing the
+   downsampled level rather than a copy of the current one. ~1.2x on top, a real
+   rewrite, and it puts a full width band of the next level in RAM.
+4. Leave the codec, the progress reporting and the scaler alone, performance
    wise. The scaler still needs its float bug fixed, for correctness.
 
 ## A deadlock found along the way
