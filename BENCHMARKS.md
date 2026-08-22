@@ -243,6 +243,42 @@ is whatever `TiffSaver.writeImage` would have built. `-Dkheops.precompress=false
 gives the compression back to the writer if a future Bio-Formats diverges.
 Reproduce with the `writer compresses` row of `ExportBenchmark`.
 
+### Reusing the compressed tile for the temporary file
+
+A tile of a level below the last is written to two files. It used to be
+serialized twice: compressed for the final file, and raw for the temporary one,
+through `saveBytes` - strip assembly, edge padding, IFD, full raw sized write.
+The temporary writer takes the **same** compressed buffer now, so a tile is
+serialized once and the identical bytes go to both files. The temporary file
+declares the export's compression and is ~40 % smaller; the workers pay for
+decompressing it when they read the level back.
+
+Measured back to back, alternating the two builds in one session:
+
+| dataset | serialized twice | serialized once | speedup |
+| --- | ---: | ---: | ---: |
+| in memory, 8000x6000 x 3 uint16 | 2132 ms | 1851 ms | **x1.15** |
+| VSI `10x_01` | 2702 ms | 2665 ms | x1.01 |
+| VSI RGB overview | 5439 ms | 5228 ms | x1.04 |
+
+**It did what it was meant to, and the ceiling moved.** In memory, the share of
+the export the writing thread spent blocked on the temporary writer went from
+**54 % to 7 %** (42 % + 12 % draining, down to 5.8 % + 1.2 %). The temporary
+writer is no longer the bottleneck at all. The total only fell 15 % because the
+time reappeared on the other side: waiting for the worker threads went from 20 %
+to **63 %**. The workers now downsample, compress *and* decompress the level they
+read back, and they are what everything queues behind.
+
+**Anything measured across builds from here has to alternate them in one
+session.** Over this session the same code on the same VSI series drifted from
+2383 ms to 2665 ms, ~12 %, which is larger than any of the differences in the
+table above. Two of those rows read as regressions when compared against numbers
+taken an hour earlier, and are not.
+
+`compressTemporaryFiles` no longer means anything on this path: the tile is
+compressed once whatever it says, and a smaller temporary file is then pure gain.
+It still applies to the levels that fall back to `saveBytes`, RGB above level 0.
+
 ### `AverageImageScaler.downsample`, 2048x2048 to 1024x1024
 
 | pixels | per tile | throughput |
@@ -341,7 +377,13 @@ default configuration.
    band of the next level in RAM.
 4. ~~Take the compression off the writing thread.~~ **Done**: the workers hand
    the writer tiles they already compressed, x1.22 to x5.77.
-5. Leave the codec choice, the progress reporting and the scaler alone,
+5. ~~Stop serializing a tile twice.~~ **Done**: the temporary writer takes the
+   same compressed buffer as the final one, x1.15 on a writer bound export. It
+   dropped the writing thread's wait on the temporary writer from 54 % to 7 %.
+6. **The worker threads are the new ceiling** - 63 % of an in-memory export is
+   the writing thread waiting for them. That is where to look next, not at the
+   writer.
+7. Leave the codec choice, the progress reporting and the scaler alone,
    performance wise. The scaler still needs its float bug fixed, for correctness.
 
 ## A deadlock found along the way

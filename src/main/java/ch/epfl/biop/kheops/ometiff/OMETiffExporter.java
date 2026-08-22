@@ -775,7 +775,18 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					currentLevelWriter.setBigTiff(true);
 					currentLevelWriter.setId(getFileName(r));
 					currentLevelWriter.setSeries(dstSeries);
-					if (compressTempFile) currentLevelWriter.setCompression(CompressionType.LZW.getCompression());
+					if (tileCodec != null && precompressible(r)) {
+						// This level's tiles reach the temporary writer already compressed
+						// for the final file, so the temporary file has to declare the same
+						// compression. Reusing them costs nothing, which makes
+						// compressTemporaryFiles moot here: the tile is compressed once
+						// whatever the option says, and a smaller temporary file is then
+						// only an advantage
+						currentLevelWriter.setCompression(compression);
+					}
+					else if (compressTempFile) {
+						currentLevelWriter.setCompression(CompressionType.LZW.getCompression());
+					}
 					currentLevelWriter.setTileSizeX(writerTileX);
 					currentLevelWriter.setTileSizeY(writerTileY);
                     // !!!! weird. See TestOMETIFFRGBMultiScaleTile
@@ -839,6 +850,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 									}
 
 									byte[] tile = computedBlocks.get(key);
+									byte[] compressed = compressedBlocks.remove(key);
 									int tileStartX = (int) startX;
 									int tileStartY = (int) startY;
 									int tileWidth = (int) (endX - startX);
@@ -846,16 +858,24 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 									if (r < nResolutionLevels - 1) {
 										// Hands the tile to the temporary writer and moves on: it is
-										// written while the final writer compresses the same tile.
-										// The array stays alive through the lambda, so removing the
-										// tile from computedBlocks below is safe
+										// written while the final writer writes the same tile. The
+										// arrays stay alive through the lambda, so removing the tile
+										// from computedBlocks below is safe
 										final OMETiffWriter levelWriter = currentLevelWriter;
 										final int tilePlane = plane;
-										tempTileWriter.submit(() -> levelWriter.saveBytes(tilePlane,
-												tile, tileStartX, tileStartY, tileWidth, tileHeight));
+										if (compressed != null) {
+											// The very same bytes the final file gets: the tile is
+											// serialized once and written to two files
+											tempTileWriter.submit(() -> levelWriter.saveCompressedBytes(
+													tilePlane, compressed, tileStartX, tileStartY,
+													tileWidth, tileHeight));
+										}
+										else {
+											tempTileWriter.submit(() -> levelWriter.saveBytes(tilePlane,
+													tile, tileStartX, tileStartY, tileWidth, tileHeight));
+										}
 									}
 
-									byte[] compressed = compressedBlocks.remove(key);
 									if (compressed != null) {
 										writer.saveCompressedBytes(plane, compressed, tileStartX,
 												tileStartY, tileWidth, tileHeight);
@@ -967,9 +987,9 @@ public class OMETiffExporter<T extends NumericType<T>> {
 	 * final file. Both writes used to run one after the other on the single
 	 * thread which drives the export, and the temporary one was measured at 19 to
 	 * 25 % of the export time, see
-	 * <a href="https://github.com/BIOP/ijp-kheops/issues/12">issue #12</a>. It
-	 * writes uncompressed bytes to a different file, so nothing prevents it from
-	 * running while the final writer compresses the same tile.
+	 * <a href="https://github.com/BIOP/ijp-kheops/issues/12">issue #12</a>. They
+	 * go to two different files, so nothing prevents them from running at the
+	 * same time.
 	 * <p>
 	 * The queue is deliberately short. The temporary write is about three times
 	 * cheaper than the final one, so the thread only ever has to stay one tile
