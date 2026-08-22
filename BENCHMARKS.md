@@ -61,15 +61,28 @@ Java 21.0.11, Windows 11, 32 logical processors, 12 GB heap, NVMe.
 today: 1024 px tiles, LZW, uncompressed temporary files, 31 worker threads,
 **a source reader pool of 1**, progress monitor on.
 
+**The `synthetic`, `vsirgb`, `czi` and `lif` tables below were measured before
+the parallel temporary writer and the pre-compressed tiles**, and are kept for
+the reasoning they support, not as current timings. The in-memory and VSI
+`10x_01` tables have been re-measured since. The two dedicated sections further
+down carry the before/after of each change.
+
 ### In memory, 8000x6000 x 3 ch uint16 (275 MB raw, 4 levels)
+
+Re-measured after both changes. The reader pool is irrelevant here: no decoding.
 
 | configuration | median | vs baseline |
 | --- | ---: | ---: |
-| baseline | 6787 ms | - |
-| no progress monitor | 6955 ms | x0.98 |
-| uncompressed | 3553 ms | x1.91 |
-| 1 worker thread | 7233 ms | x0.94 |
-| no pyramid (level 0 only) | 3459 ms | x1.96 |
+| baseline | 1954 ms | - |
+| no progress monitor | 1914 ms | x1.02 |
+| uncompressed | 1858 ms | x1.05 |
+| writer compresses | 4204 ms | x0.46 |
+| 1 worker thread | 4629 ms | x0.42 |
+| no pyramid (level 0 only) | 372 ms | x5.26 |
+
+`uncompressed` is now worth almost nothing (x1.05) because the compression no
+longer runs on the writing thread. `1 worker thread` fell to x0.42 for the same
+reason: the workers compress now, so their number matters.
 
 ### Synthetic file, same size (nearly free decoding)
 
@@ -83,16 +96,26 @@ today: 1024 px tiles, LZW, uncompressed temporary files, 31 worker threads,
 
 ### VSI `10x_01`, 7230x6151 x 3 ch uint16 (real decoding)
 
+Re-measured after both changes.
+
 | configuration | median | vs baseline |
 | --- | ---: | ---: |
-| baseline | 12057 ms | - |
-| **reader pool = threads** | **6567 ms** | **x1.84** |
-| no progress monitor | 11638 ms | x1.04 |
-| uncompressed | 10460 ms | x1.15 |
-| 1 worker thread | 12172 ms | x0.99 |
-| reader pool + no monitor | 6583 ms | x1.83 |
-| no pyramid (level 0 only) | 9242 ms | x1.30 |
-| **no pyramid + reader pool** | **3774 ms** | **x3.20** |
+| baseline | 9389 ms | - |
+| **reader pool = threads** | **2415 ms** | **x3.89** |
+| no progress monitor | 9146 ms | x1.03 |
+| uncompressed | 9025 ms | x1.04 |
+| writer compresses | 10042 ms | x0.93 |
+| 1 worker thread | 12676 ms | x0.74 |
+| reader pool + no monitor | 2427 ms | x3.87 |
+| no pyramid (level 0 only) | 8137 ms | x1.15 |
+| **no pyramid + reader pool** | **1420 ms** | **x6.61** |
+
+The baseline row still uses a reader pool of 1, which `KheopsCommand` no longer
+does: it is kept as the reference the other rows are relative to. At pool 1 the
+export is decode bound, which is why `writer compresses` barely shows here
+(x0.93) while it is x2.28 in memory - the compression it moves was hidden behind
+decoding. Compare `reader pool = threads` (2415 ms) with the 6567 ms the same
+configuration cost before the two changes.
 
 ### VSI RGB overview, 16172x6817
 
@@ -236,7 +259,7 @@ Reproduce with the `writer compresses` row of `ExportBenchmark`.
 `KheopsCommand` opens the source with a pool of a *single* Bio-Formats reader
 (`nParallelJobs = 1`), while the exporter runs one worker thread per processor.
 All 31 threads therefore queue on that one reader while computing resolution
-level 0. Raising the pool is worth **x1.84 to x2.59** on the VSI slide and
+level 0. Raising the pool is worth **x3.89** on the VSI 16 bit series today, and
 nothing at all on an uncompressed synthetic file - which is the control that
 identifies the effect as decoding parallelism rather than metadata reading.
 
@@ -253,49 +276,46 @@ dominates the total.
 
 The decisive experiment is `no pyramid + reader pool`, which switches the
 pyramid off entirely - no temporary files, no `OMETiffReader`, no scaling - so
-that only the level 0 path remains. The pool is still worth **x2.45** on the
-16 bit series (9242 -> 3774 ms) and **x3.87** on the RGB one (17447 -> 4511 ms).
+that only the level 0 path remains. The pool is still worth **x5.73** on the
+16 bit series (8137 -> 1420 ms) and x3.87 on the RGB one (pre-change numbers).
 That rules out metadata reading, which is identical in both configurations and
 costs about 1 s in total.
 
-**Once the pool is raised, everything converges on the single writing thread.**
-Both VSI series land at ~7.5 s, the same ceiling the synthetic tests show. The
-worker threads then have nothing left to contribute: in the in-memory test one
-worker thread is as fast as 31.
+**The writing thread is no longer the single ceiling.** It was: before the two
+changes below, both VSI series and the synthetic file all landed at ~7.5 s, and
+one worker thread was as fast as 31. Now that the workers compress, they carry
+real work again - in memory, one worker thread costs x0.42 against 31.
 
-**The pyramid overhead is partly hidden today.** Subtracting the `no pyramid`
-row from the corresponding full pyramid one gives what building the pyramid
-costs:
+**What the pyramid costs.** Subtracting the `no pyramid` row from the full
+pyramid one, both measured after the two changes:
 
-| series | at pool 1 | at pool 31 |
-| --- | ---: | ---: |
-| VSI `10x_01` | 2815 ms | 2793 ms |
-| VSI RGB overview | 1877 ms | 2961 ms |
+| series | full pyramid | level 0 only | the pyramid |
+| --- | ---: | ---: | ---: |
+| in memory | 1954 ms | 372 ms | 1582 ms (81 %) |
+| VSI `10x_01`, reader pool raised | 2415 ms | 1420 ms | 995 ms (41 %) |
 
-For the 16 bit series it is the same either way, as expected since the pyramid
-stage never touches the reader pool. For the RGB one it grows by ~1.1 s once the
-pool is raised: the temporary file is written on the writing thread, which sits
-idle waiting for tiles while decoding is the bottleneck, so part of that cost is
-free today and only becomes visible once decoding is fixed. The two problems
-therefore compose, but not purely additively - do not simply add the speedups.
+A pyramid holds ~33 % more pixels than its level 0, so at the efficiency of
+level 0 it should cost ~124 ms more in memory and ~470 ms more on the VSI. The
+rest - **~1.45 s in memory, ~0.5 s on the VSI** - is the temporary file round
+trip: every level below the last is written a second time, reopened, and read
+back tile by tile.
 
-In the in-memory test, where there is no decoding at all, the overhead is at its
-clearest: writing level 0 only takes 3459 ms of the 6787 ms baseline, although
-the pyramid adds just ~33 % more pixels. At the efficiency of level 0 the whole
-pyramid should cost ~4.6 s, so roughly **2 s, about a third of the export**, is
-the temporary file round trip - every level is written a second time, reopened,
-and read back tile by tile.
+Those two fractions, 81 % and 41 %, are far apart on purpose. The in-memory test
+has no source decoding at all, so its level 0 is nearly free and the round trip,
+which does decode a real TIFF back, dominates what is left. A real file pays for
+decoding at level 0 too. **Quote the VSI figure for real inputs, not the
+in-memory one.**
 
-**Half of that round trip is now overlapped rather than removed.** The temporary
-write, 19-25 % of the export, runs on its own thread since issue #12, worth
-x1.18 to x1.27 (table above). What is left of the round trip is the reopening and
-the tile by tile read back, both on the worker threads, which are not the
-bottleneck. Removing the round trip altogether means storing the *downsampled*
-level in the temporary file instead of a copy of the current one - four times
-less temporary data - which costs a full width band of the next level in RAM,
-`width x tileY x bytesPerPixel` at the peak, ~100 MB for a 100 000 px wide uint16
-plane. That is a rewrite of the pyramid path for ~1.2x on top of what is already
-gained, so it is not obviously worth it.
+**Half of the round trip is overlapped rather than removed.** The temporary write
+runs on its own thread since issue #12. What is left is the reopening and the
+tile by tile read back, on the worker threads. Removing it altogether means
+storing the *downsampled* level in the temporary file instead of a copy of the
+current one - four times less temporary data - which costs a full width band of
+the next level in RAM, `width x tileY x bytesPerPixel` at the peak, ~100 MB for a
+100 000 px wide uint16 plane. On the VSI that is ~x1.3, on a writer bound export
+considerably more. It is a rewrite of the pyramid path; the ceiling is now high
+enough that it is worth reconsidering, but it is still the most expensive item
+on this list.
 
 **Compression was ~46 % of the writer bound time**, and now runs on the worker
 threads instead (see above). No better codec is available anyway: zlib is four
@@ -316,8 +336,9 @@ default configuration.
    on its own thread, `OMETiffExporter.AsyncTileWriter`, x1.18 to x1.27 on a
    pyramid and nothing on a single level export (issue #12).
 3. Remove what is left of the temporary file round trip, by storing the
-   downsampled level rather than a copy of the current one. ~1.2x on top, a real
-   rewrite, and it puts a full width band of the next level in RAM.
+   downsampled level rather than a copy of the current one. ~x1.3 on the VSI and
+   more on a writer bound export, but a real rewrite, and it puts a full width
+   band of the next level in RAM.
 4. ~~Take the compression off the writing thread.~~ **Done**: the workers hand
    the writer tiles they already compressed, x1.22 to x5.77.
 5. Leave the codec choice, the progress reporting and the scaler alone,
