@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -73,8 +74,11 @@ import java.util.concurrent.TimeoutException;
  * </pre>
  *
  * where a dataset is one of {@code vsi}, {@code czi}, {@code lif},
- * {@code synthetic}, or {@code memory}. All of them are run if none is given.
- * The datasets have to be cached first, see {@link BenchmarkDatasets}.
+ * {@code synthetic}, {@code giant}, or {@code memory}. All of them except
+ * {@code giant} are run if none is given: the giant plane is opt in because it
+ * generates a 1.2 GB source and takes far longer than the others. The real
+ * datasets have to be cached first, see {@link BenchmarkDatasets}; the
+ * synthetic ones are generated on first use.
  */
 public class ExportBenchmark {
 
@@ -93,9 +97,15 @@ public class ExportBenchmark {
 	private static final int TIMEOUT_SECONDS = Integer.getInteger(
 		"kheops.bench.timeout", 900);
 
-	/** Where the exported files are written and deleted again */
+	/**
+	 * Where the exported files are written and deleted again. Override with
+	 * {@code -Dkheops.bench.outputDir=...}: an export writes both its output and
+	 * its temporary pyramid file here, so this is where most of the disk traffic
+	 * goes, and the system temporary directory is rarely the right drive for it.
+	 */
 	private static final File OUTPUT_DIR = new File(System.getProperty(
-		"java.io.tmpdir"), "kheops-bench-output");
+		"kheops.bench.outputDir", new File(System.getProperty("java.io.tmpdir"),
+			"kheops-bench-output").getAbsolutePath()));
 
 	// ------------------------------------------------------------ configuration
 
@@ -111,6 +121,10 @@ public class ExportBenchmark {
 		boolean singleResolution = false;
 		/** Whether the workers compress tiles, instead of the writing thread */
 		boolean precompress = true;
+		int tile = TILE;
+		int queue = MAX_TILES_IN_QUEUE;
+		/** Whether the series of a multi series file are exported concurrently */
+		boolean parallelSeries = false;
 
 		Config(String label) {
 			this.label = label;
@@ -143,6 +157,21 @@ public class ExportBenchmark {
 
 		Config uncompressed() {
 			compression = "Uncompressed";
+			return this;
+		}
+
+		Config tile(int size) {
+			tile = size;
+			return this;
+		}
+
+		Config queue(int n) {
+			queue = n;
+			return this;
+		}
+
+		Config parallelSeries() {
+			parallelSeries = true;
 			return this;
 		}
 	}
@@ -209,8 +238,24 @@ public class ExportBenchmark {
 						benchmarkInMemory(context);
 						break;
 					case "synthetic":
-						benchmarkFile("synthetic uint16, 8000x6000, 3 channels",
+						benchmarkFile("synthetic uint16, " + SyntheticImages.SIZE_X + "x" +
+							SyntheticImages.SIZE_Y + ", " + SyntheticImages.SIZE_C + " channels",
 							SyntheticImages.uint16File(), 0, context);
+						break;
+					case "giant":
+						benchmarkFile("synthetic uint16, one giant plane " +
+							SyntheticImages.GIANT_SIZE + "x" + SyntheticImages.GIANT_SIZE +
+							", 1 channel", SyntheticImages.giantUint16File(), 0, context);
+						break;
+					case "multiseries":
+						benchmarkMultiSeries(context);
+						break;
+					case "standard":
+						benchmarkStandard(context);
+						break;
+					case "manyplanes":
+						benchmarkFile("synthetic uint16, many small planes", SyntheticImages
+							.manyPlanesUint16File(), 0, context);
 						break;
 					case "vsi":
 						benchmarkFile("VSI brain slide, series 10x_01 (uint16, 3 channels)",
@@ -260,7 +305,8 @@ public class ExportBenchmark {
 	 * and the TIFF writer.
 	 */
 	private static void benchmarkInMemory(Context context) throws Exception {
-		int sizeX = 8000, sizeY = 6000, sizeC = 3;
+		int sizeX = SyntheticImages.SIZE_X, sizeY = SyntheticImages.SIZE_Y;
+		int sizeC = SyntheticImages.SIZE_C;
 		List<RandomAccessibleInterval<?>> channels = new ArrayList<>();
 		for (int c = 0; c < sizeC; c++)
 			channels.add(SyntheticImages.uint16Image(sizeX, sizeY, c));
@@ -277,8 +323,12 @@ public class ExportBenchmark {
 			int levels = config.singleResolution ? 1 : nResolutions;
 			results.add(Bench.measure(config.label, WARMUP, REPEATS, rawMB, () -> {
 				File output = newOutputFile();
-				exportInMemory(channels, levels, config, output, context);
-				delete(output);
+				try {
+					exportInMemory(channels, levels, config, output, context);
+				}
+				finally {
+					deleteOutputs(output);
+				}
 			}));
 		}
 		Bench.report("In memory uint16 " + sizeX + "x" + sizeY + "x" + sizeC,
@@ -345,8 +395,12 @@ public class ExportBenchmark {
 		for (Config config : configurations()) {
 			Bench.Result result = measureOrSkip(config.label, description.rawMB, () -> {
 				File output = newOutputFile();
-				exportFromFile(input, series, config, output, context);
-				delete(output);
+				try {
+					exportFromFile(input, series, config, output, context);
+				}
+				finally {
+					deleteOutputs(output);
+				}
 			});
 			if (result != null) results.add(result);
 		}
@@ -418,8 +472,12 @@ public class ExportBenchmark {
 			Bench.Result result = measureOrSkip(config.label, description.rawMB,
 				() -> {
 					File output = newOutputFile();
-					exportFromFile(input, series, config, output, context);
-					delete(output);
+					try {
+						exportFromFile(input, series, config, output, context);
+					}
+					finally {
+						deleteOutputs(output);
+					}
 				});
 			if (result != null) results.add(result);
 		}
@@ -474,24 +532,11 @@ public class ExportBenchmark {
 		File output, Context context) throws Exception
 	{
 		KheopsHelper.SourcesInfo info = openSources(input, config.readerPoolSize,
-			context);
+			config.tile, config.queue, context);
 		applyPrecompression(config);
 		try {
-			SourceAndConverter[] sources = sourcesOfSeries(info, input, series);
-			RandomAccessibleInterval<?> model = sources[0].getSpimSource().getSource(0,
-				0);
-			int nResolutions = config.singleResolution ? 1 : resolutionLevels((int) Math
-				.min(model.dimension(0), model.dimension(1)));
-
-			OMETiffExporter.OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder writer =
-				OMETiffExporter.builder().put(sources).defineMetaData("Image")
-					.defineWriteOptions().tileSize(TILE, TILE).nResolutionLevels(
-						nResolutions).downsample(2).compression(config.compression)
-					.maxTilesInQueue(
-						MAX_TILES_IN_QUEUE).nThreads(config.nThreads).savePath(output
-							.getAbsolutePath());
-			if (config.monitor) writer.monitor(context.getService(TaskService.class));
-			writer.create().export();
+			exportSources(sourcesOfSeries(info, input, series), config, output,
+				context);
 		}
 		finally {
 			clearPrecompression();
@@ -499,11 +544,42 @@ public class ExportBenchmark {
 		}
 	}
 
+	/**
+	 * Exports one series through the exporter, with the tile size, queue depth
+	 * and thread count of the configuration. Neither opens nor closes the
+	 * sources: the multi series benchmark exports several series out of the same
+	 * reader pool.
+	 */
+	@SuppressWarnings("rawtypes")
+	private static void exportSources(SourceAndConverter[] sources, Config config,
+		File output, Context context) throws Exception
+	{
+		RandomAccessibleInterval<?> model = sources[0].getSpimSource().getSource(0,
+			0);
+		int nResolutions = config.singleResolution ? 1 : resolutionLevels((int) Math
+			.min(model.dimension(0), model.dimension(1)), config.tile);
+
+		OMETiffExporter.OMETiffExporterBuilder.WriterOptions.WriterOptionsBuilder writer =
+			OMETiffExporter.builder().put(sources).defineMetaData("Image")
+				.defineWriteOptions().tileSize(config.tile, config.tile)
+				.nResolutionLevels(nResolutions).downsample(2).compression(
+					config.compression).maxTilesInQueue(config.queue).nThreads(
+						config.nThreads).savePath(output.getAbsolutePath());
+		if (config.monitor) writer.monitor(context.getService(TaskService.class));
+		writer.create().export();
+	}
+
 	private static KheopsHelper.SourcesInfo openSources(File input,
 		int readerPoolSize, Context context)
 	{
-		return KheopsHelper.getSourcesFromFile(input.getAbsolutePath(), TILE, TILE,
-			MAX_TILES_IN_QUEUE, readerPoolSize, false, "CORNER", context);
+		return openSources(input, readerPoolSize, TILE, MAX_TILES_IN_QUEUE, context);
+	}
+
+	private static KheopsHelper.SourcesInfo openSources(File input,
+		int readerPoolSize, int tile, int queue, Context context)
+	{
+		return KheopsHelper.getSourcesFromFile(input.getAbsolutePath(), tile, tile,
+			queue, readerPoolSize, false, "CORNER", context);
 	}
 
 	@SuppressWarnings("rawtypes")
@@ -566,21 +642,278 @@ public class ExportBenchmark {
 
 	/** Same rule as the Kheops command: downsample until a level fits in a tile */
 	private static int resolutionLevels(int smallestSide) {
+		return resolutionLevels(smallestSide, TILE);
+	}
+
+	private static int resolutionLevels(int smallestSide, int tile) {
 		int size = smallestSide;
 		int levels = 1;
-		while (size > TILE) {
+		while (size > tile) {
 			size /= 2;
 			levels++;
 		}
 		return levels;
 	}
 
+
+	// ------------------------------------------------------------- standard
+
+	/**
+	 * What a user actually gets. {@code KheopsCommand} converts with LZW
+	 * (`KheopsCommand.java:70`), 1024 pixel tiles, one worker thread per
+	 * processor minus one, a reader pool of {@code Math.min(nThreads, 8)}
+	 * (`KheopsCommand.java:133`), a queue of 64 tiles and a progress monitor.
+	 * A file holding several series is the exception: each series is then
+	 * exported by a single worker, with a queue of 4, and the series run
+	 * concurrently.
+	 * <p>
+	 * This is the only benchmark here that changes nothing at all. Every other
+	 * one varies a factor to attribute a cost; this one just reports the
+	 * throughput of the defaults, per dataset.
+	 */
+	private static Config standardConfig(String label) {
+		return new Config(label).readerPool(Math.min(DEFAULT_THREADS, 8));
+	}
+
+	private static void benchmarkStandard(Context context) throws Exception {
+		System.out.println("\n### Standard mode: the defaults, LZW, nothing changed");
+		List<Bench.Result> results = Bench.results();
+		String synthetic = "synthetic, " + SyntheticImages.SIZE_X + "x" +
+			SyntheticImages.SIZE_Y + ", " + SyntheticImages.SIZE_C + " ch";
+		add(results, standardFile(synthetic, SyntheticImages.uint16File(), context));
+		add(results, standardFile("giant, one " + SyntheticImages.GIANT_SIZE + "x" +
+			SyntheticImages.GIANT_SIZE + " plane", SyntheticImages.giantUint16File(),
+			context));
+		// The same giant plane with the pyramid switched off. It does strictly
+		// less work than the row above - it is a ceiling, not a speedup - and it
+		// is the fastest number this benchmark can produce
+		String level0 = "giant, level 0 only (no pyramid)";
+		add(results, standardFile(level0, SyntheticImages.giantUint16File(),
+			standardConfig(level0).noPyramid(), context));
+		add(results, standardFile("many planes, " + SyntheticImages.MANY_PLANES_SIZE +
+			"x" + SyntheticImages.MANY_PLANES_SIZE + ", " + SyntheticImages.MANY_PLANES_T +
+			" t, " + SyntheticImages.MANY_PLANES_C + " ch", SyntheticImages
+				.manyPlanesUint16File(), context));
+		add(results, standardMultiSeries(context));
+		// the rows are different datasets, not variants of one configuration:
+		// comparing them to the first would be meaningless
+		Bench.report("Standard mode, defaults, LZW", results, false);
+	}
+
+	private static void add(List<Bench.Result> results, Bench.Result result) {
+		if (result != null) results.add(result);
+	}
+
+	private static Bench.Result standardFile(String label, File input,
+		Context context) throws Exception
+	{
+		return standardFile(label, input, standardConfig(label), context);
+	}
+
+	private static Bench.Result standardFile(String label, File input,
+		Config config, Context context) throws Exception
+	{
+		Description description = describe(input, 0, context);
+		System.out.println("    " + label + "\n      " + description);
+		return measureOrSkip(label, description.rawMB, () -> {
+			File output = newOutputFile();
+			try {
+				exportFromFile(input, 0, config, output, context);
+			}
+			finally {
+				deleteOutputs(output);
+			}
+		});
+	}
+
+	/** The multi series default: one worker per series, series in parallel */
+	private static Bench.Result standardMultiSeries(Context context)
+		throws Exception
+	{
+		File input = SyntheticImages.multiSeriesUint16File();
+		String label = SyntheticImages.MULTI_SERIES_COUNT + " series, " +
+			SyntheticImages.MULTI_SERIES_SIZE + "x" + SyntheticImages.MULTI_SERIES_SIZE;
+		Config config = new Config(label).parallelSeries().threads(1).queue(4)
+			.readerPool(Math.min(DEFAULT_THREADS, 8));
+		double rawMB = multiSeriesRawMB(input, context);
+		System.out.printf("    %s%n      %.0f MB raw in total%n", label, rawMB);
+		return measureOrSkip(label, rawMB, () -> exportAllSeries(input, config,
+			context));
+	}
+
+	/** @return the raw size of every series of a multi series file, in MB */
+	@SuppressWarnings("rawtypes")
+	private static double multiSeriesRawMB(File input, Context context) {
+		KheopsHelper.SourcesInfo info = openSources(input, 8, context);
+		try {
+			SourceAndConverter[] sources = sourcesOfSeries(info, input, 0);
+			RandomAccessibleInterval<?> model = sources[0].getSpimSource().getSource(0,
+				0);
+			return (double) info.idToSources.size() * model.dimension(0) * model
+				.dimension(1) * bytesPerPixel(sources[0]) / (1024 * 1024);
+		}
+		finally {
+			shutDown(info);
+		}
+	}
+
+	// ---------------------------------------------------------- multi series
+
+	/**
+	 * The configuration a multi series file is really exported with today.
+	 * {@code KheopsCommand} sets {@code process_series_in_parallel} as soon as a
+	 * file holds more than one series, and then gives every series a single
+	 * worker thread and a queue of 4 tiles instead of 64
+	 * ({@code KheopsCommand.java:291-293}). Series run concurrently, so the
+	 * machine is busy even though each export is single threaded.
+	 * <p>
+	 * None of the other datasets measure this: they export one series with all
+	 * the worker threads, which is what {@code KheopsCommand} does only for a
+	 * single series file. Since the archetypal Kheops input - a slide scanner
+	 * file, a LIF, a CZI - holds several series, this is the path most exports
+	 * actually take.
+	 */
+	private static List<Config> multiSeriesConfigurations() {
+		List<Config> configs = new ArrayList<>();
+		// what KheopsCommand does today for any file with more than one series
+		configs.add(new Config("parallel series, 1 worker (as KheopsCommand)")
+			.parallelSeries().threads(1).queue(4).readerPool(8));
+		// the queue depth is the only thing KheopsCommand changes besides the
+		// thread count, so it is worth separating the two
+		configs.add(new Config("parallel series, 1 worker, queue 64")
+			.parallelSeries().threads(1).queue(64).readerPool(8));
+		configs.add(new Config("parallel series, 2 workers").parallelSeries()
+			.threads(2).queue(4).readerPool(8));
+		// the other strategy: one series at a time, all the threads on it. This is
+		// what the single series path does, applied to every series in turn
+		configs.add(new Config("serial series, all workers").queue(64).readerPool(
+			8));
+		// the reader pool is shared by every concurrent export, so it is a
+		// plausible bottleneck of the parallel strategy
+		configs.add(new Config("parallel series, 1 worker, pool = threads")
+			.parallelSeries().threads(1).queue(4).readerPool(DEFAULT_THREADS));
+		configs.add(new Config("parallel series, 1 worker, uncompressed")
+			.parallelSeries().threads(1).queue(4).readerPool(8).uncompressed());
+		// The three single factor changes above are each worth something on their
+		// own. These combine them: more workers per series and a larger reader
+		// pool both want the same idle cores, so they may compound or cancel
+		configs.add(new Config("parallel series, 2 workers, pool = threads")
+			.parallelSeries().threads(2).queue(4).readerPool(DEFAULT_THREADS));
+		configs.add(new Config("parallel series, 2 workers, pool = threads, queue 64")
+			.parallelSeries().threads(2).queue(64).readerPool(DEFAULT_THREADS));
+		// the queue depth was noise when the workers were starved by the reader
+		// pool; it may stop being noise once they are not
+		configs.add(new Config("parallel series, 4 workers, pool = threads, queue 64")
+			.parallelSeries().threads(4).queue(64).readerPool(DEFAULT_THREADS));
+		return configs;
+	}
+
+	/**
+	 * Exports every series of a generated multi series file, either concurrently
+	 * with one worker each or one after the other with every worker, and reports
+	 * the total time for the whole file.
+	 */
+	private static void benchmarkMultiSeries(Context context) throws Exception {
+		File input = SyntheticImages.multiSeriesUint16File();
+		System.out.println("\n### synthetic uint16, " +
+			SyntheticImages.MULTI_SERIES_COUNT + " series of " +
+			SyntheticImages.MULTI_SERIES_SIZE + "x" + SyntheticImages.MULTI_SERIES_SIZE +
+			", 1 channel\n    " + input);
+
+		KheopsHelper.SourcesInfo info = openSources(input, 8, context);
+		int nSeries;
+		double rawMB;
+		try {
+			nSeries = info.idToSources.size();
+			Description first = new Description();
+			SourceAndConverter[] sources = sourcesOfSeries(info, input, 0);
+			RandomAccessibleInterval<?> model = sources[0].getSpimSource().getSource(0,
+				0);
+			first.sizeX = (int) model.dimension(0);
+			first.sizeY = (int) model.dimension(1);
+			rawMB = (double) nSeries * first.sizeX * first.sizeY * bytesPerPixel(
+				sources[0]) / (1024 * 1024);
+		}
+		finally {
+			shutDown(info);
+		}
+		System.out.printf("    %d series, %.0f MB raw in total, %d resolution " +
+			"levels each%n", nSeries, rawMB, resolutionLevels(
+				SyntheticImages.MULTI_SERIES_SIZE));
+
+		List<Bench.Result> results = Bench.results();
+		for (Config config : multiSeriesConfigurations()) {
+			Bench.Result result = measureOrSkip(config.label, rawMB, () -> exportAllSeries(
+				input, config, context));
+			if (result != null) results.add(result);
+		}
+		Bench.report("Multi series, " + nSeries + " x " +
+			SyntheticImages.MULTI_SERIES_SIZE + "x" +
+			SyntheticImages.MULTI_SERIES_SIZE, results);
+	}
+
+	/**
+	 * Exports every series of a file out of one shared reader pool, the way the
+	 * Kheops command does. The outputs are deleted as they are produced rather
+	 * than at the end, so that the disk holds one output per concurrent export
+	 * and not the whole file.
+	 */
+	private static void exportAllSeries(File input, Config config, Context context)
+		throws Exception
+	{
+		KheopsHelper.SourcesInfo info = openSources(input, config.readerPoolSize,
+			config.tile, config.queue, context);
+		applyPrecompression(config);
+		try {
+			List<Integer> ids = new ArrayList<>(info.idToSources.keySet());
+			ids.sort(null);
+			if (config.parallelSeries) {
+				// a pool of its own rather than the common one, so that the number of
+				// concurrent exports is the same from one run to the next
+				ForkJoinPool pool = new ForkJoinPool(DEFAULT_THREADS);
+				try {
+					pool.submit(() -> ids.parallelStream().forEach(id -> exportOneSeries(
+						info, input, id, config, context))).get();
+				}
+				finally {
+					pool.shutdown();
+				}
+			}
+			else {
+				for (int id : ids)
+					exportOneSeries(info, input, id, config, context);
+			}
+		}
+		finally {
+			clearPrecompression();
+			shutDown(info);
+		}
+	}
+
+	/** Wraps the checked exceptions so that this can run inside a stream */
+	private static void exportOneSeries(KheopsHelper.SourcesInfo info, File input,
+		int id, Config config, Context context)
+	{
+		File output = newOutputFile();
+		try {
+			exportSources(sourcesOfSeries(info, input, id), config, output, context);
+		}
+		catch (Exception e) {
+			throw new IllegalStateException("Series " + id + " failed", e);
+		}
+		finally {
+			deleteOutputs(output);
+		}
+	}
 	// ------------------------------------------------------------------ output
 
-	private static int counter = 0;
+	/** Atomic: the multi series benchmark exports several series at once */
+	private static final java.util.concurrent.atomic.AtomicInteger counter =
+		new java.util.concurrent.atomic.AtomicInteger();
 
 	private static File newOutputFile() {
-		return new File(OUTPUT_DIR, "bench_" + (counter++) + ".ome.tiff");
+		return new File(OUTPUT_DIR, "bench_" + counter.getAndIncrement() +
+			".ome.tiff");
 	}
 
 	private static void prepareOutputDir() {
@@ -591,6 +924,24 @@ public class ExportBenchmark {
 		if (leftovers != null) for (File file : leftovers)
 			delete(file);
 		System.out.println("Exporting to " + OUTPUT_DIR);
+	}
+
+	/**
+	 * Deletes an export and the temporary pyramid files that went with it.
+	 * {@code OMETiffExporter} writes one {@code <name>_lvl_<r>.ome.tiff} per
+	 * resolution level below the last; a failed export leaves them behind, and
+	 * on the giant dataset that is several gigabytes per attempt.
+	 */
+	private static void deleteOutputs(File output) {
+		delete(output);
+		String base = output.getName();
+		int extension = base.indexOf(".ome");
+		String prefix = (extension < 0 ? base : base.substring(0, extension)) +
+			".ome_lvl_";
+		File[] leftovers = OUTPUT_DIR.listFiles((dir, name) -> name.startsWith(
+			prefix));
+		if (leftovers != null) for (File file : leftovers)
+			delete(file);
 	}
 
 	private static void delete(File file) {

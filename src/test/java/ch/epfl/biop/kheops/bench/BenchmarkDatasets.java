@@ -53,9 +53,14 @@ import java.util.function.Function;
  */
 public class BenchmarkDatasets {
 
-	/** Where the generated synthetic datasets are cached */
-	public static final File BENCH_DIR = new File(DatasetHelper.cachedSampleDir,
-		"kheops-bench");
+	/**
+	 * Where the generated synthetic datasets are cached. Override with
+	 * {@code -Dkheops.bench.inputDir=...} to keep them off the system drive: the
+	 * giant plane alone is half a gigabyte.
+	 */
+	public static final File BENCH_DIR = new File(System.getProperty(
+		"kheops.bench.inputDir", new File(DatasetHelper.cachedSampleDir,
+			"kheops-bench").getAbsolutePath()));
 
 	// Zenodo record 6553641 - mouse brain slices, Olympus VSI slide scanner
 	// 22 fluorescent series of about 7000x6000 pixels, 3 channels, 16 bits

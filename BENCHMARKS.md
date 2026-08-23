@@ -12,7 +12,12 @@ starts from evidence rather than from intuition.
 
 ## Running them
 
-The datasets are downloaded once into `~/CachedSamples` (via `DatasetHelper`
+The generated datasets total about 12 GB at their default sizes, chosen so that
+a default export of each takes on the order of ten seconds. `kheops.bench.giantSize`,
+`kheops.bench.seriesSize`, `kheops.bench.planeSize` and `kheops.bench.timepoints`
+scale them down if that is too much.
+
+The real datasets are downloaded once into `~/CachedSamples` (via `DatasetHelper`
 from `bigdataviewer-image-loaders`) and are never stored in this repository.
 
 ```
@@ -25,9 +30,22 @@ java -Xmx12g -cp <test classpath> ch.epfl.biop.kheops.bench.CompressionBenchmark
 ```
 
 `ExportBenchmark` accepts any of `memory`, `synthetic`, `vsi`, `vsirgb`, `czi`,
-`lif` (all of them if none is given), and `list` to print the series of each
-file. Results are printed as a table and written as CSV to
-`target/benchmark-results/`.
+`lif` (all of them if none is given), the opt in `giant`, `manyplanes` and
+`multiseries`, `standard` (see below), and `list` to print the series of each
+file. Results are printed as a table and written as CSV
+to `target/benchmark-results/`.
+
+Two system properties decide where the bytes go, and neither defaults to a good
+place on a machine whose system drive is small:
+
+| property | what it holds | default |
+| --- | --- | --- |
+| `kheops.bench.inputDir` | the generated synthetic sources | `~/CachedSamples/kheops-bench` |
+| `kheops.bench.outputDir` | every export, plus its temporary pyramid file | `%TEMP%/kheops-bench-output` |
+
+The output directory takes by far the most traffic: each measured run writes the
+pyramid and its temporary file there and deletes them again. Put it on the drive
+whose speed you actually mean to measure.
 
 | class | what it measures |
 | --- | --- |
@@ -42,8 +60,11 @@ file. Results are printed as a table and written as CSV to
 
 | name | content | stresses |
 | --- | --- | --- |
-| `memory` | 8000x6000, 3 ch, uint16, built in RAM | the writing side only, no decoding at all |
-| `synthetic` | the same, as an uncompressed tiled OME-TIFF | the full pipeline with a nearly free decoder |
+| `memory` | 22000x16000, 3 ch, uint16, built in RAM | the writing side only, no decoding at all |
+| `synthetic` | the same, as an uncompressed tiled OME-TIFF (2.1 GB raw, 5 levels) | the full pipeline with a nearly free decoder |
+| `giant` | one uint16 plane of 32000x32000 (1.9 GB raw, 6 levels), generated | a deep pyramid with no per-plane overhead at all |
+| `multiseries` | 16 series of 8192x8192 uint16 (2 GB raw, 4 levels each), generated | the threading `KheopsCommand` really uses on a multi-series file |
+| `manyplanes` | 1024x1024 uint16, 1250 t x 2 ch (2500 planes, 4.9 GB raw, 1 level), generated | per-plane overhead: one TIFF directory per plane, no pyramid at all |
 | `vsi` | Olympus VSI slide, series 2 `10x_01`, 7230x6151, 3 ch uint16 | the archetypal Kheops input, expensive JPEG decoding |
 | `vsirgb` | the RGB overview of the same slide, 16172x6817 | the ARGB / interleaved path |
 | `czi` | Zeiss CZI, 4 series, 1500x1000, 41 z ([Zenodo 19047136](https://zenodo.org/records/19047136)) | an expensive decoder, many planes, no pyramid |
@@ -54,6 +75,32 @@ Comparing `synthetic` with `vsi` is what separates a decoding bottleneck from a
 writing one: they export the same amount of data, through the same code, and
 differ only in how expensive the source is to read.
 
+`giant` is opt in - `ExportBenchmark` does not run it unless it is named on the
+command line - because it generates a 488 MB source and takes a few times
+longer than the other datasets. Its source is written one tile at
+a time (`SyntheticImages.writeTiles`), so the scenario is not bounded by what a
+`byte[]` can hold: raise `-Dkheops.bench.giantSize` past 32404 and the plane no
+longer fits in one, which no plane-at-a-time generator could produce. Its
+side is deliberately not a multiple of the 1024 pixel tile, so the clipped
+tiles of the right and bottom edges are exercised as well.
+
+### Why `multiseries` exists
+
+Every other dataset exports **one** series with **all** the worker threads. That
+is what `KheopsCommand` does only when a file holds a single series. As soon as
+there is more than one, `process_series_in_parallel` is set
+(`KheopsCommand.java:165`) and each series is exported by **one** worker thread
+with a queue of 4 tiles instead of 64 (`KheopsCommand.java:291-293`), with the
+series running concurrently. `KheopsBatchCommand` does the same, `nThreads(1)`
+per file (`KheopsBatchCommand.java:238`), at tile size 512.
+
+Since the archetypal Kheops input - a slide scanner file, a LIF, a CZI - holds
+several series, that is the path most real exports take, and until this dataset
+existed nothing measured it. The `1 worker thread` row of the other datasets is
+not a substitute: it runs a single lonely export on an otherwise idle machine,
+whereas the real path runs as many concurrent single-worker exports as there are
+processors.
+
 ## Results
 
 Java 21.0.11, Windows 11, 32 logical processors, 12 GB heap, NVMe.
@@ -61,11 +108,72 @@ Java 21.0.11, Windows 11, 32 logical processors, 12 GB heap, NVMe.
 today: 1024 px tiles, LZW, 31 worker threads,
 **a source reader pool of 1**, progress monitor on.
 
+> Note: that baseline label is stale. `Config.readerPoolSize` still defaults to
+> 1, but `KheopsCommand.java:133` has used `Math.min(nThreads, 8)` since the
+> pool fix, so the `baseline` rows below understate what Kheops does today on
+> any dataset where decoding costs something. The standard mode table just
+> below uses the real default of 8.
+
 **The `synthetic`, `vsirgb`, `czi` and `lif` tables below were measured before
 the parallel temporary writer and the pre-compressed tiles**, and are kept for
 the reasoning they support, not as current timings. The in-memory and VSI
 `10x_01` tables have been re-measured since. The two dedicated sections further
 down carry the before/after of each change.
+
+### Standard mode: what a user actually gets
+
+`ExportBenchmark standard`. Nothing is varied: this is the throughput of the
+defaults, LZW, on each synthetic dataset. Output on `F:`, an NVMe SSD.
+
+| dataset | raw input | levels | median | MB/s | **MPix/s, level 0** | **MPix/s, all levels** |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `synthetic`, 22000x16000, 3 ch | 2014 MB | 5 | 9482 ms | 212.4 | **111.4** | **148.3** |
+| `giant`, one 32000x32000 plane | 1953 MB | 6 | 9386 ms | 208.1 | **109.1** | **145.4** |
+| `giant`, level 0 only, no pyramid | 1953 MB | 1 | 3148 ms | 620.5 | **325.3** | **325.3** |
+| `manyplanes`, 1024x1024, 1250 t x 2 ch | 5000 MB | 1 | 10750 ms | 465.1 | **243.9** | **243.9** |
+| `multiseries`, 16 x 8192x8192 | 2048 MB | 4 | 10528 ms | 194.5 | **102.0** | **135.5** |
+
+The datasets are sized so that a default export of each takes on the order of
+ten seconds, which is long enough that startup and the first tiles do not
+dominate. The level 0 row is the exception: it shares the `giant` input and
+does a sixth of the work, so it lands at three seconds.
+
+The defaults are: LZW, 1024 pixel tiles, 31 worker threads, a reader pool of
+`min(nThreads, 8)` - so 31 workers and **8** readers - a queue of 64 tiles, and
+a progress monitor. A file holding several series is the exception: it takes the
+parallel path `KheopsCommand` switches to on its own, one worker per series,
+queue of 4, series exported concurrently.
+
+**Read the MPix/s columns, not MB/s.** MB/s counts the input, and the datasets
+neither share a bytes-per-pixel nor build the same pyramid. A 1024 pixel plane
+is not larger than the 1024 pixel tile, so `manyplanes` gets a single resolution
+level: no downsampling, no temporary file, no second write. It leads on MB/s
+because it does the least work per input megabyte, not because per plane
+overhead is cheap.
+
+On the all-levels column, which counts every pixel the exporter computes and
+writes, the four real datasets land within 10 % of each other: 148, 145, 244 and
+136 MPix/s. Shape matters much less than it looks like it does from MB/s, once
+the pyramid is accounted for. `manyplanes` is genuinely ahead, and it is the one
+that builds no pyramid at all.
+
+**The pyramid costs a factor of 2.2.** The same 32000x32000 plane exports at
+109 MPix/s with its six levels and 325 MPix/s with level 0 alone. That row is a
+ceiling on the writing path, not a configuration anyone converts with: it skips
+the temporary file, the downsampling, the second write, and the level barrier
+described under the giant plane results.
+
+**None of these are compressed bytes.** The LZW output size is not measured
+here - the benchmark deletes each export as soon as it is timed. Wall time and
+output size per codec are what `CompressionBenchmark` reports.
+
+**Precision.** Both passes of this table were measured in one JVM and agree to
+within 3 % on every row. Against a run of the same table half an hour earlier
+the rows differ by 2 to 10 %. That is much tighter than the 13 to 19 % seen at
+the previous, smaller sizes, which fits the ten second target doing its job -
+the shorter the export, the more a fixed cost or a warm cache moves it. Compare
+rows only within one table; re-measure the whole table in one JVM before
+comparing it with another.
 
 ### In memory, 8000x6000 x 3 ch uint16 (275 MB raw, 4 levels)
 
@@ -289,6 +397,107 @@ option had nothing left to choose.
 | float32, 1 channel | 42 ms | 381 MB/s |
 | uint8, 3 channels planar | 100 ms | 120 MB/s |
 | uint8, 3 channels interleaved | 80 ms | 150 MB/s |
+
+
+### Synthetic scenarios, output on a second drive
+
+The two tables below were measured with `kheops.bench.outputDir` on `F:`, unlike
+every table above it, which used `%TEMP%` on `C:`. On this machine that costs
+about 20 %: the same in-memory export takes 1592 ms writing to `C:` and 1908 ms
+writing to `F:`. Rows **within** each table are comparable; rows across the two
+drives are not.
+
+#### One giant plane, 16000x16000 uint16 (488 MB raw, 5 levels)
+
+> Measured at the earlier, smaller default size. `giant` is 32000x32000 today,
+> so these timings are not comparable with the standard mode table above; the
+> ratios between the rows still are.
+
+| configuration | median | MB/s | vs baseline |
+| --- | ---: | ---: | ---: |
+| baseline | 3671 ms | 133.0 | - |
+| reader pool = threads | 3226 ms | 151.3 | x1.14 |
+| no progress monitor | 3777 ms | 129.3 | x0.97 |
+| uncompressed | 2139 ms | 228.3 | x1.72 |
+| writer compresses | 7046 ms | 69.3 | x0.52 |
+| 1 worker thread | 27066 ms | 18.0 | x0.14 |
+| reader pool + no monitor | 2703 ms | 180.7 | x1.36 |
+| no pyramid (level 0 only) | 1141 ms | 427.8 | x3.22 |
+| no pyramid + reader pool | 837 ms | 583.3 | x4.38 |
+
+One plane instead of three reaches 133 MB/s against the 118.5 MB/s of
+`synthetic`, and the reader pool matters more (x1.36 combined against x1.12):
+a single large plane gives the pool more contiguous work to hand out.
+
+The pyramid tail is the ceiling here. Levels are written strictly one after the
+other - workers block on `currentLevelWritten` at `OMETiffExporter.java:527`
+until the writing thread publishes the next level - and each level holds four
+times fewer tiles than the one below: 256, 64, 16, **4**, 1. So level 3 can keep
+exactly four threads busy on a 32 thread machine, whatever the configuration.
+256 of the 341 tiles are level 0, so the tail is a quarter of the tiles running
+at a fraction of the parallelism, which is what `no pyramid` being x3.22 is
+measuring.
+
+#### Multi series, 16 x 4096x4096 uint16 (512 MB raw, 3 levels each)
+
+> Measured at the earlier, smaller default size. `multiseries` is 16 x 8192x8192
+> today, so these timings are not comparable with the standard mode table above;
+> the ratios between the rows still are.
+
+Measured twice, in two JVMs. The second run added the combined configurations
+and is the one to read; both are shown because the difference between them is
+itself a result.
+
+| configuration | run 1 | run 2 | vs first, run 2 |
+| --- | ---: | ---: | ---: |
+| parallel series, 1 worker (as `KheopsCommand`) | 2692 ms | 2272 ms | - |
+| parallel series, 1 worker, queue 64 | 2615 ms | 2233 ms | x1.02 |
+| parallel series, 2 workers | 2289 ms | 2063 ms | **x1.10** |
+| serial series, all workers | 11003 ms | 8875 ms | **x0.26** |
+| parallel series, 1 worker, pool = threads | 2249 ms | 2270 ms | x1.00 |
+| parallel series, 1 worker, uncompressed | 1159 ms | 1136 ms | x2.00 |
+| parallel series, 2 workers, pool = threads | - | 2034 ms | x1.12 |
+| parallel series, 2 workers, pool = threads, queue 64 | - | 2068 ms | x1.10 |
+| parallel series, 4 workers, pool = threads, queue 64 | - | 2123 ms | x1.07 |
+
+**The current strategy is decisively right.** Exporting the series concurrently
+with one worker each beats exporting them one at a time with every worker by
+x3.9, in both runs. Giving each series a single thread is not a compromise, it
+is close to the fastest arrangement measured, and at 225 MB/s this is the
+highest throughput of any dataset here - higher than a single series export
+using all 31 workers.
+
+That also settles what the `1 worker thread` row of the other datasets means: it
+measures one lonely export on an idle machine, and nothing more. On the path
+that actually uses one worker per export, the parallelism comes from the series
+and the machine stays busy.
+
+What survives both runs:
+
+- **Two workers per series is worth about x1.10**, and it is the only knob here
+  that does anything. Four workers is worse (x1.07): at 16 series the machine
+  already runs 16 writing threads and 16 temporary writers, so the workers are
+  competing for cores well before that.
+- **The reader pool does nothing on this path** (x1.00), and it does not
+  compound with the worker change: 2 workers alone is x1.10, 2 workers with a
+  pool of 31 is x1.12, inside the noise of each other. Level 0 is the only level
+  read through the pool, and with 16 exports in flight there is already enough
+  concurrency to hide it.
+- **The queue depth does nothing** (x1.02), before or after the pool is raised.
+  Dropping from 64 tiles to 4, which `KheopsCommand` does to keep the memory
+  footprint of a parallel export down, is free.
+- **The export is compression bound**, not I/O bound: dropping the codec halves
+  the time (x2.00).
+
+**A caution about run 1.** Its first configuration measured 2692 ms against
+2272 ms for the same configuration in run 2, an 18 % gap, while every other row
+moved far less. Reading run 1 alone made the reader pool look like a x1.20 win;
+it is x1.00. The first configuration of a run pays a cost the later ones do not
+- a cold read of the 512 MB source, JIT compilation, or both - and one warmup
+run is not enough to absorb it on a two second workload. `vs first` is therefore
+biased in favour of whatever runs later, and a difference under ~20 % between
+the first row and any other row should not be trusted from a single run. This is
+the ordering caveat at the end of this file, larger than it looks.
 
 ## What the numbers mean
 
