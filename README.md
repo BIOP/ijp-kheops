@@ -14,6 +14,21 @@ Resolution levels are built by **averaging** each 2x2 block of the level above, 
 
 ![average versus nearest neighbour downscaling](images/downscaling-average-vs-nn.png)
 
+## Contents
+
+- [Install](#install)
+- [Convert a file](#convert-a-file)
+- [Batch convert files](#batch-convert-files)
+- [Export an image already open in Fiji](#export-an-image-already-open-in-fiji)
+- [Export BigDataViewer sources](#export-bigdataviewer-sources)
+- [Read the documentation](#read-the-documentation)
+- [Scripting](#scripting)
+- [Command line](#command-line)
+  - [Parameters](#parameters)
+  - [From a script instead](#from-a-script-instead)
+- [How Kheops compares](#how-kheops-compares)
+  - [Benchmark](#benchmark)
+
 ## Install
 
 Kheops targets [ImageJ/Fiji](https://imagej.net/software/fiji/) and is installed through the [PTBIOP update site](https://wiki-biop.epfl.ch/en/ipa/fiji/update-site).
