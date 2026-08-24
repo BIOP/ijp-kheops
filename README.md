@@ -23,7 +23,7 @@ It is a tool targeted for [ImageJ/Fiji](https://imagej.net/software/fiji/). It c
 
 ![img.png](images/img.png)
 
-2. Select `Kheops - Convert File to Pyramidal OME`
+2. Select `Kheops - Convert File to Pyramidal OME TIFF`
 
 ![img.png](images/search-bar.png)
 
@@ -31,11 +31,17 @@ It is a tool targeted for [ImageJ/Fiji](https://imagej.net/software/fiji/). It c
 
 ![Single file processing](images/1-image_single_file.png)
 
- - **Select an input file (required)**: Select the file you want to convert to a pyramidal ome.tiff 
- - **Specify an output folder (optional)**: By default, it will save the ome.tiff in the same folder 
+Every field has a tooltip, so the list below only repeats what needs more than one line:
+
+ - **Input file (required)**: the file you want to convert to a pyramidal ome.tiff. Any format readable by Bio-Formats works, and each series it contains is written to its own file.
+ - **Output folder (optional)**: by default, it saves the ome.tiff next to the input file.
+ - **Compression type**: `LZW` is lossless and a good default. `Uncompressed` is the fastest to write and the biggest. `JPEG-2000` is lossless but slow, while `JPEG-2000 Lossy` and `JPEG` give the smallest files but modify the pixel values.
+ - **Series / channels / slices / timepoints subset**: leave blank to export everything. Indices start at 0, `-1` is the last one, a comma lists indices (`0,3,5`) and a colon writes a range with both bounds included (`2:6`, or `0:2:10` for a step of 2).
+ - **Split channels / slices / timepoints**: writes one file per channel, slice or timepoint instead of a single file, with the index appended to the file name.
  - **Override voxel sizes**: if your original file is not calibrated, NOW is the occasion to set the correct pixel size. Note that if the image is a multi-series image, all images will have the same voxel size.
- - **Voxel size in micrometer (XY)**: if `Override voxel sizes` is checked, the output images will use this value to set the voxel size along the X and Y dimension
-- **Voxel size in micrometer (Z)**: if `Override voxel sizes` is checked, the output images will use this value to set the voxel size along the Z dimension
+ - **XY / Z voxel size (micrometer)**: used only if `Override voxel sizes` is checked, to set the voxel size along X and Y, and along Z.
+
+An output file that already exists is never overwritten: it is skipped, and a message is printed in the Log window.
 
 For the sake of simplicity, only a few saving parameters are left to the users. The output file is compressed using lzw compression by default, tiled with a tile size of 1024x1024, and pyramidal levels are computed with a downscaling factor 2 until the top level is a single tile (X or Y dimension below 1024 pixels). Note that the batch command below uses a tile size of 512x512 instead.
 
@@ -44,14 +50,18 @@ For the sake of simplicity, only a few saving parameters are left to the users. 
 If you need to convert several files, this is the preferred command. It can be very fast because all cores are used and each core is processing a single file. Reading and writing can thus happen in parallel. For maximum speed, you may choose a different drive between inputs and outputs.
 
 1. Use the Fiji search bar and type `kheops`
-2. Select `Kheops - Batch Convert File to Pyramidal OME`
+2. Select `Kheops - Batch Convert Files to Pyramidal OME TIFF`
 3. Click `Run`
 
 ![Batch command](images/batch-command.png)
 
-4. Select the images to convert in the file array widget, the other options are identical to the single file mode. 
+4. Select the images to convert in the file array widget, the other options are identical to the single file mode. The subset fields apply the same selection to every file.
+
+This command only pays off if you have more files than cores. For a handful of large files, the single file command, which parallelizes inside one file, is faster.
 
 ## Kheops - Export ImagePlus To OME-TIFF
+
+![ImagePlus command](images/imageplus-command.png)
 
 This command converts an image already opened in Fiji to a pyramidal ome.tiff file. The output is tiled (512x512) and pyramidal, exactly like the one of the file conversion commands.
 
@@ -60,6 +70,16 @@ The image does not need to fit in memory: **virtual stacks are supported**, and 
 The output file is named after the image title (`title.ome.tiff`). The output folder is optional: leave it empty and the file is written next to the file the image was opened from. An image that is not backed by a file (a freshly created image, a screen capture, ...) has no such folder, so in that case you do need to specify the output folder.
 
 The voxel size, the unit and the frame interval written in the OME metadata are taken from the Fiji calibration of the image, so check `Image > Properties...` before exporting.
+
+## Source - Export To OME-TIFF
+
+![Sources command](images/sources-command.png)
+
+This command lives in `Plugins > BigDataViewer-Playground > Export` and saves the selected BigDataViewer sources into a single pyramidal ome.tiff file, each source becoming one channel of the output file.
+
+All sources must share the same dimensions and the same pixel type. The resolution levels are recomputed by averaging from the highest resolution level of the sources, so any transformation applied to a source (registration, warping, ...) is baked into the exported pixels.
+
+Contrary to the commands above, this one exposes the writing parameters: number of resolution levels, downscaling factor, tile size and number of threads.
 
 ## Kheops - Read Documentation ...
 You arrive at this page.
@@ -70,7 +90,7 @@ You arrive at this page.
 //@File(Label="Select a file", style="" ) input_path
 output_dir = File.getParent(input_path);
 
-run("Kheops - Convert File to Pyramidal OME", "input_path=["+input_path+"] output_dir=["+output_dir+"] override_voxel_size=false vox_size_xy=0.0 vox_size_z=0.0");
+run("Kheops - Convert File to Pyramidal OME TIFF", "input_path=["+input_path+"] output_dir=["+output_dir+"] compression=LZW override_voxel_size=false vox_size_xy=0.0 vox_size_z=0.0");
 ```
 
 # Alternative to Kheops, differences and benchmark

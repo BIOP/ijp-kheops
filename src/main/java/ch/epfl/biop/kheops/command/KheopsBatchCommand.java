@@ -61,7 +61,7 @@ import static ch.epfl.biop.kheops.KheopsHelper.transferSeriesMeta;
 public class KheopsBatchCommand implements Command {
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String documentation = "<html><h3>Batch convert files to pyramidal OME-TIFF</h3>" +
+    String documentation = "<html><body style='width: 620px'><h3>Batch convert files to pyramidal OME-TIFF</h3>" +
             "Same conversion as <b>Kheops - Convert File to Pyramidal OME TIFF</b>, but several files are " +
             "processed <b>at the same time</b>, one per CPU core. Reading and writing then overlap, which is " +
             "the fastest option when you have many files.<br>" +
@@ -69,7 +69,7 @@ public class KheopsBatchCommand implements Command {
             "file command (which parallelizes inside one file) is faster.<br>" +
             "For maximum speed, read from one drive and write to another one.<br>" +
             "<i>An output file that already exists is never overwritten: it is skipped, and a message is " +
-            "printed in the Log window.</i></html>";
+            "printed in the Log window.</i></body></html>";
 
     @Parameter(label = "Input files (required)", style = "open",
             description = "The files to convert. Any format readable by Bio-Formats works, and the files do not need to be of the same format.")
@@ -85,11 +85,11 @@ public class KheopsBatchCommand implements Command {
     String compression = "LZW";
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String message = "<html><b>Select a subset of series, channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
+    String message = "<html><body style='width: 620px'><b>Select a subset of series, channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
             "The same subset is applied to <b>every</b> selected file. Indices start at <b>0</b>, and <b>-1</b> is " +
             "the last one. Use a comma to list indices and a colon to write a range (bounds included):<br>" +
             "<code>0,3,5</code> &#8594; indices 0, 3 and 5 &nbsp;&nbsp; <code>2:6</code> &#8594; 2, 3, 4, 5, 6 " +
-            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</html>";
+            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</body></html>";
 
     @Parameter( label = "Series subset", required = false,
             description = "Indices of the series to convert in each file, e.g. '0' for the first series only. Blank = all series." )

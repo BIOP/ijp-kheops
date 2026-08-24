@@ -62,7 +62,7 @@ import static ch.epfl.biop.kheops.KheopsHelper.transferSeriesMeta;
 public class KheopsCommand implements Command {
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String documentation = "<html><h3>Convert a file to a pyramidal OME-TIFF</h3>" +
+    String documentation = "<html><body style='width: 620px'><h3>Convert a file to a pyramidal OME-TIFF</h3>" +
             "Reads any file that <b>Bio-Formats</b> can open and rewrites it as a tiled, pyramidal " +
             "<b>.ome.tiff</b>, keeping the original metadata (channel names, colors, voxel size).<br>" +
             "Every <b>series</b> of the input file is written to its own file, named after the input file " +
@@ -72,7 +72,7 @@ public class KheopsCommand implements Command {
             "<i>An output file that already exists is never overwritten: it is skipped, and a message is " +
             "printed in the Log window.</i><br>" +
             "To convert many files at once, prefer <b>Kheops - Batch Convert Files to Pyramidal OME TIFF</b>." +
-            "</html>";
+            "</body></html>";
 
     @Parameter(label = "Input file (required)", style = "open",
             description = "The file to convert. Any format readable by Bio-Formats works (.czi, .lif, .nd2, .vsi, .svs, .ome.tiff, ...).")
@@ -88,11 +88,11 @@ public class KheopsCommand implements Command {
     String compression = "LZW";
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String message = "<html><b>Select a subset of series, channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
+    String message = "<html><body style='width: 620px'><b>Select a subset of series, channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
             "Indices start at <b>0</b>, and <b>-1</b> is the last one. Use a comma to list indices and a colon to " +
             "write a range (bounds included):<br>" +
             "<code>0,3,5</code> &#8594; indices 0, 3 and 5 &nbsp;&nbsp; <code>2:6</code> &#8594; 2, 3, 4, 5, 6 " +
-            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</html>";
+            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</body></html>";
 
     @Parameter( label = "Series subset", required = false,
             description = "Indices of the series to convert, e.g. '0' for the first series only. Blank = all series." )
@@ -111,8 +111,8 @@ public class KheopsCommand implements Command {
     String subset_frames = "";
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String split_message = "<html><b>Splitting</b> writes one file per channel / slice / timepoint instead of a single " +
-            "file. The index is appended to the file name (<code>..._C3_Z0.ome.tiff</code>).</html>";
+    String split_message = "<html><body style='width: 620px'><b>Splitting</b> writes one file per channel / slice / timepoint instead of a single " +
+            "file. The index is appended to the file name (<code>..._C3_Z0.ome.tiff</code>).</body></html>";
 
     @Parameter( label = "Split channels", required = false,
             description = "Write one file per channel of the selected subset, instead of one multi-channel file." )

@@ -39,7 +39,7 @@ import java.io.File;
 public class KheopsExportImagePlusCommand implements Command {
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String documentation = "<html><h3>Export an open image to a pyramidal OME-TIFF</h3>" +
+    String documentation = "<html><body style='width: 620px'><h3>Export an open image to a pyramidal OME-TIFF</h3>" +
             "Writes an image that is <b>already open in Fiji</b> as a tiled, pyramidal <b>.ome.tiff</b>. " +
             "<b>Virtual stacks are supported</b>: slices are read one plane at a time, so the image does not " +
             "need to fit in memory.<br>" +
@@ -48,7 +48,7 @@ public class KheopsExportImagePlusCommand implements Command {
             "The Fiji calibration of the image (voxel size, unit, frame interval) is written into the OME metadata, " +
             "so make sure it is correct before exporting (Image &gt; Properties...).<br>" +
             "<i>An output file that already exists is never overwritten: it is skipped, and a message is " +
-            "printed in the Log window.</i></html>";
+            "printed in the Log window.</i></body></html>";
 
     @Parameter(label = "Image to export",
             description = "The open image to save. Its title gives the name of the output file. Virtual stacks are supported.")
@@ -64,11 +64,11 @@ public class KheopsExportImagePlusCommand implements Command {
     String compression = "LZW";
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String message = "<html><b>Select a subset of channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
+    String message = "<html><body style='width: 620px'><b>Select a subset of channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
             "Indices start at <b>0</b>, and <b>-1</b> is the last one. Use a comma to list indices and a colon to " +
             "write a range (bounds included):<br>" +
             "<code>0,3,5</code> &#8594; indices 0, 3 and 5 &nbsp;&nbsp; <code>2:6</code> &#8594; 2, 3, 4, 5, 6 " +
-            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</html>";
+            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</body></html>";
 
     @Parameter( label = "Channels subset", required = false,
             description = "Indices of the channels to export. Blank = all channels." )

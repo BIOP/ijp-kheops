@@ -49,25 +49,25 @@ import java.util.List;
 public class KheopsExportSourcesCommand implements Command {
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String documentation = "<html><h3>Export BDV sources to a pyramidal OME-TIFF</h3>" +
+    String documentation = "<html><body style='width: 620px'><h3>Export BDV sources to a pyramidal OME-TIFF</h3>" +
             "Writes the selected <b>BigDataViewer sources</b> into a single tiled, pyramidal <b>.ome.tiff</b>, " +
             "each source becoming one <b>channel</b> of the output file.<br>" +
             "All sources must share the same dimensions and the same pixel type; the resolution levels of the " +
             "output are recomputed by averaging from the highest resolution level of the sources, so any " +
             "transformation applied to a source (registration, warping, ...) is baked into the exported pixels.<br>" +
             "<i>An output file that already exists is never overwritten: it is skipped, and a message is " +
-            "printed in the Log window.</i></html>";
+            "printed in the Log window.</i></body></html>";
 
     @Parameter(label = "Sources to export",
             description = "The BDV sources to write. Each source becomes one channel of the output file.")
     public SourceAndConverter[] sources;
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String message = "<html><b>Select a subset of channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
+    String message = "<html><body style='width: 620px'><b>Select a subset of channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
             "Indices start at <b>0</b>, and <b>-1</b> is the last one. Use a comma to list indices and a colon to " +
             "write a range (bounds included):<br>" +
             "<code>0,3,5</code> &#8594; indices 0, 3 and 5 &nbsp;&nbsp; <code>2:6</code> &#8594; 2, 3, 4, 5, 6 " +
-            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</html>";
+            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</body></html>";
 
     @Parameter(label = "Channels subset", required = false,
             description = "Indices of the sources to export, in the order they were selected. Blank = all of them.")
