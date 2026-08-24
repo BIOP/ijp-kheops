@@ -57,39 +57,66 @@ import static ch.epfl.biop.kheops.KheopsHelper.transferSeriesMeta;
 @SuppressWarnings("CanBeFinal")
 @Plugin(type = Command.class,
         menuPath = "Plugins>BIOP>Kheops>Kheops - Batch Convert Files to Pyramidal OME TIFF",
-        description = "Converts in parallel Bio-Formats readable files to pyramidal OME TIFFs files.")
+        description = "Converts many Bio-Formats readable files to pyramidal OME-TIFF files, one file per CPU core.")
 public class KheopsBatchCommand implements Command {
 
-    @Parameter(label = "Select input files (required)", style="open")
+    @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
+    String documentation = "<html><h3>Batch convert files to pyramidal OME-TIFF</h3>" +
+            "Same conversion as <b>Kheops - Convert File to Pyramidal OME TIFF</b>, but several files are " +
+            "processed <b>at the same time</b>, one per CPU core. Reading and writing then overlap, which is " +
+            "the fastest option when you have many files.<br>" +
+            "It pays off only if you have <b>more files than cores</b>; for a handful of large files, the single " +
+            "file command (which parallelizes inside one file) is faster.<br>" +
+            "For maximum speed, read from one drive and write to another one.<br>" +
+            "<i>An output file that already exists is never overwritten: it is skipped, and a message is " +
+            "printed in the Log window.</i></html>";
+
+    @Parameter(label = "Input files (required)", style = "open",
+            description = "The files to convert. Any format readable by Bio-Formats works, and the files do not need to be of the same format.")
     File[] input_paths;
 
-    @Parameter(label= "Output folder (optional)", style = "directory", required=false)
+    @Parameter(label = "Output folder (optional)", style = "directory", required = false,
+            description = "Where the .ome.tiff files are written. Leave empty to write them next to the first input file. The folder is created if it does not exist.")
     File output_dir;
-    @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
+
+    @Parameter(label = "Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"},
+            description = "LZW: lossless, the safe default. Uncompressed: fastest to write, biggest files. " +
+                    "JPEG-2000: lossless but slow. JPEG-2000 Lossy and JPEG: smallest files, but pixel values are modified (JPEG only handles 8-bit and RGB images).")
     String compression = "LZW";
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String message = "<html><b>Subset in CTZ and series. Leave fields blank to export all.<br></b>" +
-            "You can use commas or colons to separate ranges. eg. '1:2:10' or '1,3,5,8'. '-1' is the last index.</html>";
+    String message = "<html><b>Select a subset of series, channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
+            "The same subset is applied to <b>every</b> selected file. Indices start at <b>0</b>, and <b>-1</b> is " +
+            "the last one. Use a comma to list indices and a colon to write a range (bounds included):<br>" +
+            "<code>0,3,5</code> &#8594; indices 0, 3 and 5 &nbsp;&nbsp; <code>2:6</code> &#8594; 2, 3, 4, 5, 6 " +
+            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</html>";
 
-    @Parameter( label = "Series subset:", required = false )
+    @Parameter( label = "Series subset", required = false,
+            description = "Indices of the series to convert in each file, e.g. '0' for the first series only. Blank = all series." )
     String subset_series = "";
-    @Parameter( label = "Channels subset:", required = false )
+
+    @Parameter( label = "Channels subset", required = false,
+            description = "Indices of the channels to keep in each converted file. Blank = all channels." )
     String subset_channels = "";
 
-    @Parameter( label = "Slices subset:", required = false )
+    @Parameter( label = "Slices subset", required = false,
+            description = "Indices of the Z slices to keep in each converted file. Blank = all slices." )
     String subset_slices = "";
 
-    @Parameter( label = "Timepoints subset:", required = false )
+    @Parameter( label = "Timepoints subset", required = false,
+            description = "Indices of the timepoints to keep in each converted file. Blank = all timepoints." )
     String subset_frames = "";
 
-    @Parameter(label="Override voxel sizes")
+    @Parameter(label = "Override voxel sizes",
+            description = "Check this if the input files are not calibrated, or if their calibration is wrong. The two values below are then used for all converted files.")
     boolean override_voxel_size;
 
-    @Parameter(label="XY Voxel size in micrometer", style="format:0.000")
+    @Parameter(label = "XY voxel size (micrometer)", style = "format:0.000",
+            description = "Physical size of a pixel along X and Y, in micrometer. Used only if 'Override voxel sizes' is checked.")
     double vox_size_xy;
 
-    @Parameter(label="Z Voxel size in micrometer", style="format:0.000")
+    @Parameter(label = "Z voxel size (micrometer)", style = "format:0.000",
+            description = "Distance between two Z slices, in micrometer. Used only if 'Override voxel sizes' is checked.")
     double vox_size_z;
 
     final Set<String> paths = new HashSet<>();

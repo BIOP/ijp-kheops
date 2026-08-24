@@ -29,6 +29,7 @@ import ome.units.UNITS;
 import ome.units.quantity.Length;
 import ome.units.unit.Unit;
 import org.apache.commons.io.FilenameUtils;
+import org.scijava.ItemVisibility;
 import org.scijava.command.Command;
 import org.scijava.log.LogService;
 import org.scijava.plugin.Parameter;
@@ -43,57 +44,89 @@ import java.util.List;
 @SuppressWarnings({ "Unused", "CanBeFinal" })
 @Plugin(type = Command.class,
         menuPath = "Plugins>BigDataViewer-Playground>Export>Source - Export To OME-TIFF",
-        description = "Saves Bdv sources as a multi-channel OME-Tiff file, with multi-resolution levels recomputed " +
-                "from the highest resolution level")
+        description = "Saves BDV sources as a single multi-channel pyramidal OME-TIFF file, with the resolution " +
+                "levels recomputed from the highest resolution level.")
 public class KheopsExportSourcesCommand implements Command {
 
-    @Parameter(label = "Sources to export")
+    @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
+    String documentation = "<html><h3>Export BDV sources to a pyramidal OME-TIFF</h3>" +
+            "Writes the selected <b>BigDataViewer sources</b> into a single tiled, pyramidal <b>.ome.tiff</b>, " +
+            "each source becoming one <b>channel</b> of the output file.<br>" +
+            "All sources must share the same dimensions and the same pixel type; the resolution levels of the " +
+            "output are recomputed by averaging from the highest resolution level of the sources, so any " +
+            "transformation applied to a source (registration, warping, ...) is baked into the exported pixels.<br>" +
+            "<i>An output file that already exists is never overwritten: it is skipped, and a message is " +
+            "printed in the Log window.</i></html>";
+
+    @Parameter(label = "Sources to export",
+            description = "The BDV sources to write. Each source becomes one channel of the output file.")
     public SourceAndConverter[] sources;
 
-    @Parameter(label = "Selected Channels. Leave blank for all", required = false)
+    @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
+    String message = "<html><b>Select a subset of channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
+            "Indices start at <b>0</b>, and <b>-1</b> is the last one. Use a comma to list indices and a colon to " +
+            "write a range (bounds included):<br>" +
+            "<code>0,3,5</code> &#8594; indices 0, 3 and 5 &nbsp;&nbsp; <code>2:6</code> &#8594; 2, 3, 4, 5, 6 " +
+            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</html>";
+
+    @Parameter(label = "Channels subset", required = false,
+            description = "Indices of the sources to export, in the order they were selected. Blank = all of them.")
     String range_channels = "";
 
-    @Parameter(label = "Selected Slices. Leave blank for all", required = false)
+    @Parameter(label = "Slices subset", required = false,
+            description = "Indices of the Z slices to export. Blank = all slices.")
     String range_slices = "";
 
-    @Parameter(label = "Selected Timepoints. Leave blank for all",
-            required = false)
+    @Parameter(label = "Timepoints subset", required = false,
+            description = "Indices of the timepoints to export. Blank = all timepoints.")
     String range_frames = "";
 
-    @Parameter(label = "Output file", style = "save")
+    @Parameter(label = "Output file", style = "save",
+            description = "Path of the file to write. The '.ome.tiff' extension is expected; the file name (without extension) is used as the OME image name.")
     public File file;
 
-    @Parameter(label = "Physical unit", choices = { "MILLIMETER", "MICROMETER" })
+    @Parameter(label = "Physical unit", choices = { "MILLIMETER", "MICROMETER" },
+            description = "Unit written in the OME metadata for the voxel size read from the sources.")
     String unit;
 
-    @Parameter(label = "Override voxel sizes")
+    @Parameter(label = "Override voxel sizes",
+            description = "Check this to ignore the voxel size of the sources and use the two values below instead.")
     boolean override_voxel_size;
 
-    @Parameter(label = "Voxel size in micrometer (XY)", style = "format:#.000")
+    @Parameter(label = "XY voxel size (micrometer)", style = "format:#.000",
+            description = "Physical size of a pixel along X and Y, in micrometer. Used only if 'Override voxel sizes' is checked.")
     double vox_size_xy_um;
 
-    @Parameter(label = "Voxel Z size in micrometer (Z)", style = "format:#.000")
+    @Parameter(label = "Z voxel size (micrometer)", style = "format:#.000",
+            description = "Distance between two Z slices, in micrometer. Used only if 'Override voxel sizes' is checked.")
     double vox_size_z_um;
 
-    @Parameter(label = "Number of resolution levels")
+    @Parameter(label = "Number of resolution levels",
+            description = "Number of levels in the pyramid, the full resolution level included. Use 1 to write a single resolution file.")
     int n_resolution_levels = 4;
 
-    @Parameter(label = "Scaling factor between resolution levels")
+    @Parameter(label = "Scaling factor between resolution levels",
+            description = "Size ratio between two successive levels of the pyramid. 2 means each level is twice smaller in X and Y than the previous one.")
     int downscaling = 2;
 
-    @Parameter(label = "Tile Size X (negative: no tiling)")
+    @Parameter(label = "Tile size X (negative: no tiling)",
+            description = "Width of the tiles, in pixels. 512 or 1024 are good values for a pyramidal file; a negative value writes untiled (strip based) planes.")
     int tile_size_x = 512;
 
-    @Parameter(label = "Tile Size Y (negative: no tiling)")
+    @Parameter(label = "Tile size Y (negative: no tiling)",
+            description = "Height of the tiles, in pixels. Usually kept equal to the tile size X.")
     int tile_size_y = 512;
 
-    @Parameter(label = "Number of threads (0 = serial)")
+    @Parameter(label = "Number of threads (0 = serial)",
+            description = "Number of threads computing and compressing tiles. Writing to the file always happens in a single thread. A good default is the number of cores minus one.")
     int n_threads = 8;
 
     //@Parameter(label = "Number of tiles computed in advance")
 
 
-    @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
+    @Parameter(label = "Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"},
+            description = "LZW: lossless, the safe default. Uncompressed: fastest to write, biggest files. " +
+                    "JPEG-2000: lossless but slow. JPEG-2000 Lossy and JPEG: smallest files, but pixel values are modified (JPEG only handles 8-bit and RGB images).")
     String compression = "LZW";
 
     @Parameter

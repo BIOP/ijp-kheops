@@ -37,7 +37,7 @@ It is a tool targeted for [ImageJ/Fiji](https://imagej.net/software/fiji/). It c
  - **Voxel size in micrometer (XY)**: if `Override voxel sizes` is checked, the output images will use this value to set the voxel size along the X and Y dimension
 - **Voxel size in micrometer (Z)**: if `Override voxel sizes` is checked, the output images will use this value to set the voxel size along the Z dimension
 
-For the sake of simplicity, only a few saving parameters are left to the users. The output file is compressed using lzw compression, tiled with a tile size of 512x512, and pyramidal levels are computed with a downscaling factor 2 until the top level is a single tile (X or Y dimension below 512 pixels).
+For the sake of simplicity, only a few saving parameters are left to the users. The output file is compressed using lzw compression by default, tiled with a tile size of 1024x1024, and pyramidal levels are computed with a downscaling factor 2 until the top level is a single tile (X or Y dimension below 1024 pixels). Note that the batch command below uses a tile size of 512x512 instead.
 
 ## Batch Convert Files to Pyramidal OME TIFF </h3> 
 
@@ -51,9 +51,15 @@ If you need to convert several files, this is the preferred command. It can be v
 
 4. Select the images to convert in the file array widget, the other options are identical to the single file mode. 
 
-## Kheops - Convert Image to Pyramidal OME
+## Kheops - Export ImagePlus To OME-TIFF
 
-This command converts the currently opened Image to a pyramidal ome.tiff file. Contrary to the file conversion commands, the image will not be tiled.
+This command converts an image already opened in Fiji to a pyramidal ome.tiff file. The output is tiled (512x512) and pyramidal, exactly like the one of the file conversion commands.
+
+The image does not need to fit in memory: **virtual stacks are supported**, and their planes are read one at a time as the export progresses.
+
+The output file is named after the image title (`title.ome.tiff`). The output folder is optional: leave it empty and the file is written next to the file the image was opened from. An image that is not backed by a file (a freshly created image, a screen capture, ...) has no such folder, so in that case you do need to specify the output folder.
+
+The voxel size, the unit and the frame interval written in the OME metadata are taken from the Fiji calibration of the image, so check `Image > Properties...` before exporting.
 
 ## Kheops - Read Documentation ...
 You arrive at this page.

@@ -29,7 +29,8 @@ import org.scijava.plugin.Plugin;
 import java.io.IOException;
 import java.net.URL;
 
-@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Read Documentation...")
+@Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Read Documentation...",
+        description = "Opens the Kheops documentation (https://github.com/BIOP/ijp-kheops) in your web browser.")
 public class KheopsDocCommand implements Command {
 
     @Parameter

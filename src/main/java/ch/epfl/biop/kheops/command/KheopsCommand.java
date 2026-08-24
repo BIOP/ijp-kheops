@@ -58,51 +58,87 @@ import static ch.epfl.biop.kheops.KheopsHelper.transferSeriesMeta;
 
 @SuppressWarnings("CanBeFinal")
 @Plugin(type = Command.class, menuPath = "Plugins>BIOP>Kheops>Kheops - Convert File to Pyramidal OME TIFF",
-        description = "Converts a Bio-Formats readable file to pyramidal OME TIFFs files (one file per series).")
+        description = "Converts one Bio-Formats readable file into tiled pyramidal OME-TIFF files, one file per series.")
 public class KheopsCommand implements Command {
-    @Parameter(label = "Select an input file (required)", style="open")
+
+    @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
+    String documentation = "<html><h3>Convert a file to a pyramidal OME-TIFF</h3>" +
+            "Reads any file that <b>Bio-Formats</b> can open and rewrites it as a tiled, pyramidal " +
+            "<b>.ome.tiff</b>, keeping the original metadata (channel names, colors, voxel size).<br>" +
+            "Every <b>series</b> of the input file is written to its own file, named after the input file " +
+            "and the series name.<br>" +
+            "Resolution levels are computed by <b>averaging</b> the level above by a factor 2, down to a " +
+            "single 1024&#215;1024 tile.<br>" +
+            "<i>An output file that already exists is never overwritten: it is skipped, and a message is " +
+            "printed in the Log window.</i><br>" +
+            "To convert many files at once, prefer <b>Kheops - Batch Convert Files to Pyramidal OME TIFF</b>." +
+            "</html>";
+
+    @Parameter(label = "Input file (required)", style = "open",
+            description = "The file to convert. Any format readable by Bio-Formats works (.czi, .lif, .nd2, .vsi, .svs, .ome.tiff, ...).")
     File input_path;
 
-    @Parameter(label= "Output folder (optional)", style = "directory", required=false)
+    @Parameter(label = "Output folder (optional)", style = "directory", required = false,
+            description = "Where the .ome.tiff files are written. Leave empty to write them next to the input file. The folder is created if it does not exist.")
     File output_dir;
 
-    @Parameter(label="Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"})
+    @Parameter(label = "Compression type", choices = {"LZW", "Uncompressed", "JPEG-2000", "JPEG-2000 Lossy", "JPEG"},
+            description = "LZW: lossless, the safe default. Uncompressed: fastest to write, biggest files. " +
+                    "JPEG-2000: lossless but slow. JPEG-2000 Lossy and JPEG: smallest files, but pixel values are modified (JPEG only handles 8-bit and RGB images).")
     String compression = "LZW";
 
     @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
-    String message = "<html><b>Subset in CTZ and series. Leave fields blank to export all.<br></b>" +
-            "You can use commas or colons to separate ranges. eg. '1:2:10' or '1,3,5,8'. '-1' is the last index.</html>";
+    String message = "<html><b>Select a subset of series, channels, slices and timepoints. Leave a field blank to export all of them.</b><br>" +
+            "Indices start at <b>0</b>, and <b>-1</b> is the last one. Use a comma to list indices and a colon to " +
+            "write a range (bounds included):<br>" +
+            "<code>0,3,5</code> &#8594; indices 0, 3 and 5 &nbsp;&nbsp; <code>2:6</code> &#8594; 2, 3, 4, 5, 6 " +
+            "&nbsp;&nbsp; <code>0:2:10</code> &#8594; 0, 2, 4, 6, 8, 10 (step 2) &nbsp;&nbsp; <code>0:-1</code> &#8594; everything.</html>";
 
-    @Parameter( label = "Series subset:", required = false )
+    @Parameter( label = "Series subset", required = false,
+            description = "Indices of the series to convert, e.g. '0' for the first series only. Blank = all series." )
     String subset_series = "";
-    @Parameter( label = "Channels subset:", required = false )
+
+    @Parameter( label = "Channels subset", required = false,
+            description = "Indices of the channels to keep in each converted file. Blank = all channels." )
     String subset_channels = "";
 
-    @Parameter( label = "Slices subset:", required = false )
+    @Parameter( label = "Slices subset", required = false,
+            description = "Indices of the Z slices to keep in each converted file. Blank = all slices." )
     String subset_slices = "";
 
-    @Parameter( label = "Timepoints subset:", required = false )
+    @Parameter( label = "Timepoints subset", required = false,
+            description = "Indices of the timepoints to keep in each converted file. Blank = all timepoints." )
     String subset_frames = "";
 
-    @Parameter( label = "Split Channels:", required = false )
+    @Parameter(visibility = ItemVisibility.MESSAGE, persist = false, required = false)
+    String split_message = "<html><b>Splitting</b> writes one file per channel / slice / timepoint instead of a single " +
+            "file. The index is appended to the file name (<code>..._C3_Z0.ome.tiff</code>).</html>";
+
+    @Parameter( label = "Split channels", required = false,
+            description = "Write one file per channel of the selected subset, instead of one multi-channel file." )
     boolean split_channels = false;
 
-    @Parameter( label = "Split Slices:", required = false )
+    @Parameter( label = "Split slices", required = false,
+            description = "Write one file per Z slice of the selected subset, instead of one Z stack." )
     boolean split_slices = false;
 
-    @Parameter( label = "Split Timepoints:", required = false )
+    @Parameter( label = "Split timepoints", required = false,
+            description = "Write one file per timepoint of the selected subset, instead of one time series." )
     boolean split_frames = false;
 
     //@Parameter( label = "Parallel Export When Split:", required = false )
     boolean parallel_split_export = false; // Couldn't observe any performance gain with true
 
-    @Parameter(label="Override voxel sizes")
+    @Parameter(label = "Override voxel sizes",
+            description = "Check this if the input file is not calibrated, or if its calibration is wrong. The two values below are then used for all converted series.")
     boolean override_voxel_size;
 
-    @Parameter(label="XY Voxel size in micrometer", style="format:0.000")
+    @Parameter(label = "XY voxel size (micrometer)", style = "format:0.000",
+            description = "Physical size of a pixel along X and Y, in micrometer. Used only if 'Override voxel sizes' is checked.")
     double vox_size_xy;
 
-    @Parameter(label="Z Voxel size in micrometer", style="format:0.000")
+    @Parameter(label = "Z voxel size (micrometer)", style = "format:0.000",
+            description = "Distance between two Z slices, in micrometer. Used only if 'Override voxel sizes' is checked.")
     double vox_size_z;
 
     public static Consumer<String> logger = IJ::log;
