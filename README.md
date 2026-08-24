@@ -105,12 +105,10 @@ Convert one file, next to the input, with the defaults:
 
 ```bat
 REM Windows
-"C:\Fiji.app\ImageJ-win64.exe" --headless --console ^
-  --run "Kheops - Convert File to Pyramidal OME TIFF" ^
-  "input_path='D:/data/slide.czi'"
+"C:\Fiji\fiji.bat" --headless --console --run "Kheops - Convert File to Pyramidal OME TIFF" "input_path='F:/image.ome.tiff',compression='LZW'"
 ```
 
-Recent Fiji installations name the launcher `fiji-linux-x64`, `fiji-windows-x64.exe` or `fiji-macos-arm64` instead of `ImageJ-*`. **Use forward slashes in paths**, on Windows too: a backslash inside the parameter string is read as an escape.
+The launcher is named differently depending on how old your Fiji is: `fiji.bat` or `fiji-windows-x64.exe` on Windows, `fiji-linux-x64` or `ImageJ-linux64` on Linux, `fiji-macos-arm64` or `ImageJ-macosx` on macOS. **Use forward slashes in paths**, on Windows too: a backslash inside the parameter string is read as an escape.
 
 Choose the output folder and the compression:
 
@@ -139,7 +137,9 @@ for f in /data/*.czi; do
 done
 ```
 
-`-Dimagej.updater.disableAutocheck=true` stops Fiji from pinging the update sites on every launch, which matters once you loop. Each file still uses every core, so converting them one after the other is the right thing to do here - the batch command takes an array of files, which is awkward to write on a command line.
+`-Dimagej.updater.disableAutocheck=true` stops Fiji from pinging the update sites on every launch, which matters once you loop.
+
+> **The batch command cannot be driven from the command line.** Its `input_paths` parameter is a list of files (`File[]`), and there is no syntax for passing one through `--run`. Loop over the single file command instead, as above. You lose nothing: the single file command already uses every core, and the batch command is only faster when it has more files than cores to work on at once.
 
 ### Parameters
 
@@ -163,9 +163,9 @@ Same names as in the macro recorder. Everything except `input_path` is optional.
 
 Quote the values that contain a space, `JPEG-2000 Lossy` in particular. `--console` sends the Kheops log to stdout, so conversion errors - an unreadable file, an output that already exists - show up in the terminal rather than disappearing.
 
-### If the menu name does not work
+### From a script instead
 
-Naming a command on the command line is sensitive to quoting and to the Fiji version. If it fails, put a script next to your data and run that instead - `--run` accepts a script path just as well, and it gives you the class directly rather than its menu name:
+`--run` accepts a script path just as well as a menu name, which is handier once the conversion is one step of something larger, and refers to the command by its class rather than by a name that could be renamed:
 
 ```groovy
 // kheops.groovy
