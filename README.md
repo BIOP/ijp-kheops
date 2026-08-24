@@ -90,6 +90,102 @@ output_dir = File.getParent(input_path);
 run("Kheops - Convert File to Pyramidal OME TIFF", "input_path=["+input_path+"] output_dir=["+output_dir+"] compression=LZW override_voxel_size=false vox_size_xy=0.0 vox_size_z=0.0");
 ```
 
+## Command line
+
+Fiji runs Kheops without opening a window, which is what you want for a cluster job, a nightly conversion or a CI pipeline. The command is named by its menu entry and the parameters by the names below.
+
+Convert one file, next to the input, with the defaults:
+
+```bash
+# Linux / macOS
+/opt/Fiji.app/ImageJ-linux64 --headless --console \
+  --run "Kheops - Convert File to Pyramidal OME TIFF" \
+  "input_path='/data/slide.czi'"
+```
+
+```bat
+REM Windows
+"C:\Fiji.app\ImageJ-win64.exe" --headless --console ^
+  --run "Kheops - Convert File to Pyramidal OME TIFF" ^
+  "input_path='D:/data/slide.czi'"
+```
+
+Recent Fiji installations name the launcher `fiji-linux-x64`, `fiji-windows-x64.exe` or `fiji-macos-arm64` instead of `ImageJ-*`. **Use forward slashes in paths**, on Windows too: a backslash inside the parameter string is read as an escape.
+
+Choose the output folder and the compression:
+
+```bash
+/opt/Fiji.app/ImageJ-linux64 --headless --console \
+  --run "Kheops - Convert File to Pyramidal OME TIFF" \
+  "input_path='/data/slide.czi',output_dir='/data/converted',compression='JPEG-2000'"
+```
+
+Set the voxel size of an uncalibrated file, and convert only its first series:
+
+```bash
+/opt/Fiji.app/ImageJ-linux64 --headless --console \
+  --run "Kheops - Convert File to Pyramidal OME TIFF" \
+  "input_path='/data/slide.czi',subset_series='0',override_voxel_size=true,vox_size_xy=0.325,vox_size_z=1.0"
+```
+
+Convert a whole folder, one file at a time:
+
+```bash
+for f in /data/*.czi; do
+  /opt/Fiji.app/ImageJ-linux64 --headless --console \
+    -Dimagej.updater.disableAutocheck=true \
+    --run "Kheops - Convert File to Pyramidal OME TIFF" \
+    "input_path='$f',output_dir='/data/converted'"
+done
+```
+
+`-Dimagej.updater.disableAutocheck=true` stops Fiji from pinging the update sites on every launch, which matters once you loop. Each file still uses every core, so converting them one after the other is the right thing to do here - the batch command takes an array of files, which is awkward to write on a command line.
+
+### Parameters
+
+Same names as in the macro recorder. Everything except `input_path` is optional.
+
+| parameter | example | meaning |
+| --- | --- | --- |
+| `input_path` | `'/data/slide.czi'` | the file to convert (required) |
+| `output_dir` | `'/data/converted'` | output folder; defaults to the input's folder |
+| `compression` | `'LZW'` | `LZW`, `Uncompressed`, `JPEG-2000`, `JPEG-2000 Lossy`, `JPEG` |
+| `subset_series` | `'0'` | which series to convert; blank means all |
+| `subset_channels` | `'0,2'` | which channels to keep |
+| `subset_slices` | `'0:10'` | which Z slices to keep |
+| `subset_frames` | `'0:2:-1'` | which timepoints to keep |
+| `split_channels` | `true` | one file per channel |
+| `split_slices` | `true` | one file per Z slice |
+| `split_frames` | `true` | one file per timepoint |
+| `override_voxel_size` | `true` | use the two values below instead of the file's calibration |
+| `vox_size_xy` | `0.325` | XY voxel size in micrometer |
+| `vox_size_z` | `1.0` | Z voxel size in micrometer |
+
+Quote the values that contain a space, `JPEG-2000 Lossy` in particular. `--console` sends the Kheops log to stdout, so conversion errors - an unreadable file, an output that already exists - show up in the terminal rather than disappearing.
+
+### If the menu name does not work
+
+Naming a command on the command line is sensitive to quoting and to the Fiji version. If it fails, put a script next to your data and run that instead - `--run` accepts a script path just as well, and it gives you the class directly rather than its menu name:
+
+```groovy
+// kheops.groovy
+#@ File input_path
+#@ File (style = "directory") output_dir
+#@ CommandService cs
+
+cs.run(ch.epfl.biop.kheops.command.KheopsCommand.class, true,
+       "input_path", input_path,
+       "output_dir", output_dir,
+       "compression", "LZW").get()
+```
+
+```bash
+/opt/Fiji.app/ImageJ-linux64 --headless --console \
+  --run kheops.groovy "input_path='/data/slide.czi',output_dir='/data/converted'"
+```
+
+The `.get()` matters: without it the script returns before the conversion is finished.
+
 # How Kheops compares
 
 Two other tools do the same job:
