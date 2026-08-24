@@ -6,3 +6,4 @@
 *.iml
 *.releaseBackup
 release.properties
+/.claude/settings.local.json
