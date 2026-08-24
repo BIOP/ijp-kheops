@@ -51,7 +51,7 @@ import org.slf4j.LoggerFactory;
 /**
  * A wrapper for buffered NIO logic that implements the IRandomAccess interface.
  *
- * @see IRandomAccess
+ * @see loci.common.IRandomAccess
  * @see java.io.RandomAccessFile
  *
  * @author Chris Allan (callan at blackcat dot ca)

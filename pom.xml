@@ -212,4 +212,19 @@
 			<url>https://maven.scijava.org/content/groups/public</url>
 		</repository>
 	</repositories>
+
+	<build>
+		<plugins>
+			<!-- Force javadoc onto the classpath (not the module path) so it does not
+			     try to derive a module descriptor for turbojpeg-8.5.0.jar, which contains
+			     TJExample.class in the unnamed package and breaks the module-path build. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<configuration>
+					<legacyMode>true</legacyMode>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
 </project>
