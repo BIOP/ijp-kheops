@@ -40,13 +40,29 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.scijava.Context;
+import org.scijava.event.EventService;
+import org.scijava.service.AbstractService;
+import org.scijava.task.DefaultTask;
+import org.scijava.task.Task;
+import org.scijava.task.TaskService;
+import org.scijava.thread.ThreadService;
 
 import java.io.File;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * Tests of the OME-TIFF export.
@@ -749,5 +765,131 @@ public class OMETiffExporterTest {
 		finally {
 			reader.close();
 		}
+	}
+
+	// ------------------------------------------------------------ cancellation
+
+	/**
+	 * A task service whose tasks report their progress the way the Swing task
+	 * monitor makes them: the event goes to a single UI thread, and the thread
+	 * which reports waits for it, as {@code EventQueue.invokeAndWait} does.
+	 */
+	private static class UiTaskService extends AbstractService implements
+		TaskService
+	{
+
+		private final ThreadService threadService;
+		private final EventService eventService;
+		private final ExecutorService ui;
+		/** Counted down by the first progress report of the export */
+		final CountDownLatch started = new CountDownLatch(1);
+
+		UiTaskService(Context context, ExecutorService ui) {
+			this.threadService = context.service(ThreadService.class);
+			this.eventService = context.service(EventService.class);
+			this.ui = ui;
+		}
+
+		@Override
+		public Task createTask(String name) {
+			Task task = new DefaultTask(threadService, eventService) {
+
+				@Override
+				public void setStatusMessage(String status) {
+					waitForUiThread();
+					super.setStatusMessage(status);
+				}
+
+				@Override
+				public void setProgressValue(long step) {
+					waitForUiThread();
+					started.countDown();
+					super.setProgressValue(step);
+				}
+			};
+			task.setName(name);
+			return task;
+		}
+
+		private void waitForUiThread() {
+			try {
+				ui.submit(() -> {}).get();
+			}
+			catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+			catch (ExecutionException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	}
+
+	/**
+	 * Pressing cancel must not freeze the application.
+	 * <p>
+	 * {@code cancelExport} used to spin until the task was done, and it runs on
+	 * the EDT, where the cancel button is. Meanwhile the writing thread reports
+	 * its progress to the Swing task monitor with {@code invokeAndWait}, so it
+	 * cannot reach the end of the export until the EDT is back in its event loop.
+	 * Neither thread can move, and neither is blocked on a monitor the other one
+	 * holds - so the JVM reports no deadlock, the application simply hangs. This
+	 * test reproduces that topology with a UI thread of its own.
+	 * <p>
+	 * It also checks what the cancellation leaves behind: no worker thread, no
+	 * half-written file, no temporary file.
+	 */
+	@Test(timeout = 180000)
+	public void cancelFromTheUiThreadDoesNotFreezeIt() throws Exception {
+		ExecutorService ui = Executors.newSingleThreadExecutor(r -> new Thread(r,
+			"test UI thread"));
+		Context context = new Context(TaskService.class, ThreadService.class,
+			EventService.class);
+		UiTaskService tasks = new UiTaskService(context, ui);
+
+		File file = new File(folder.getRoot(), "canceled.ome.tiff");
+		OMETiffExporter exporter = OMETiffExporter.builder().putXYZRAI(
+			(RandomAccessibleInterval) grayImage(2048, 2048)).defineMetaData("Image")
+			.defineWriteOptions().tileSize(128, 128).nResolutionLevels(3).monitor(
+				tasks).savePath(file.getAbsolutePath()).create();
+
+		AtomicReference<Exception> failure = new AtomicReference<>();
+		Thread export = new Thread(() -> {
+			try {
+				exporter.export();
+			}
+			catch (Exception e) {
+				failure.set(e);
+			}
+		}, "export");
+		export.start();
+		assertTrue("The export should have started", tasks.started.await(60,
+			SECONDS));
+
+		// The cancel button of the task monitor, pressed on the UI thread
+		Future<?> canceling = ui.submit(exporter::cancelExport);
+		try {
+			canceling.get(30, SECONDS);
+		}
+		catch (TimeoutException e) {
+			fail("cancelExport is holding the UI thread: the application is frozen");
+		}
+
+		export.join(SECONDS.toMillis(60));
+		assertFalse("The export thread should have stopped", export.isAlive());
+		if (failure.get() != null) throw failure.get();
+
+		// A worker can be waiting for room in the tile queue, which only the
+		// writing thread makes, while holding the lock the other workers need
+		for (Thread thread : Thread.getAllStackTraces().keySet()) {
+			assertFalse("A worker of the canceled export is still alive: " + thread
+				.getName(), thread.getName().startsWith("Kheops tile worker " + file
+					.getName()));
+		}
+		assertFalse("A canceled export should leave no file behind", file.exists());
+		assertEquals("A canceled export should leave no temporary file behind", 0,
+			folder.getRoot().listFiles().length);
+
+		ui.shutdownNow();
+		context.dispose();
 	}
 }

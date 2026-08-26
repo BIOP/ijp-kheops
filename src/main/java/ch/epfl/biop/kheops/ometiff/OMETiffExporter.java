@@ -348,13 +348,33 @@ public class OMETiffExporter<T extends NumericType<T>> {
 		return Math.min(Math.max(tileSize, TILE_GRANULARITY), maxTileSize);
 	}
 
+	/**
+	 * Stops the export. It is the cancel callback of {@link #writerTask}, so it
+	 * runs on whichever thread pressed cancel - from the SciJava task monitor,
+	 * that is the EDT. It must therefore return immediately.
+	 * <p>
+	 * It used to spin on {@code writerTask.isDone()} until the writing thread had
+	 * finished its clean-up. That freezes the UI for good: the writing thread
+	 * reports its progress with {@link Task#setStatusMessage(String)}, which the
+	 * SciJava event bus hands to the Swing task monitor through
+	 * {@code EventQueue.invokeAndWait}. The writing thread cannot reach the end
+	 * of the export until the EDT is back in its event loop, and the EDT cannot
+	 * get back to its event loop while it spins here. Neither thread is blocked
+	 * on a monitor the other one holds, so the JVM does not report a deadlock -
+	 * the application simply hangs.
+	 * <p>
+	 * Raising the flag and waking everyone up is enough to stop the export: every
+	 * wait on {@link #tileLock} rechecks {@link #isCanceled} while holding the
+	 * monitor, so a notification sent before a thread reaches its wait cannot be
+	 * lost.
+	 */
 	public void cancelExport() {
 		isCanceled = true;
-		while (!writerTask.isDone()) {
-			// TODO check whether this avoid making multiple cancel press
-			synchronized (tileLock) { // Notifies that a new resolution level is being written
-				tileLock.notifyAll();
-			}
+		// A worker may also be waiting for room in the tile queue, which only the
+		// writing thread makes - and it is about to stop making any
+		tileIterator.cancel();
+		synchronized (tileLock) {
+			tileLock.notifyAll();
 		}
 	}
 
@@ -523,9 +543,11 @@ public class OMETiffExporter<T extends NumericType<T>> {
 			publishTile(key, getBytesFromRAIs(key));
 		}
 		else {
-			// Wait for the previous resolution level to be written !
-			while ((r != currentLevelWritten)&&(!isCanceled)) {
-				synchronized (tileLock) {
+			// Wait for the previous resolution level to be written ! The condition
+			// is tested while holding the monitor, so a notification sent before
+			// this thread gets in - a cancellation, in particular - is not lost
+			synchronized (tileLock) {
+				while ((r != currentLevelWritten) && (!isCanceled)) {
 					tileLock.wait();
 				}
 			}
@@ -694,7 +716,7 @@ public class OMETiffExporter<T extends NumericType<T>> {
 
 			for (int i = 0; i < nThreads; i++) { // If nThreads = 0: skipped, everything happens in a single thread
 				logger.debug(file.getName()+" Export: Starting " + nThreads + " threads.");
-				new Thread(() -> {
+				Thread worker = new Thread(() -> {
 					try {
 						while (computeNextTile()) {
 						} // keeps going until no tile needs computation anymore (finished or canceled)
@@ -702,9 +724,14 @@ public class OMETiffExporter<T extends NumericType<T>> {
 						e.printStackTrace();
 					}
 					logger.debug(file.getAbsolutePath() + "\t Thread " + Thread.currentThread() + " stopped.");
-				}).start();
+				}, "Kheops tile worker " + file.getName() + " " + i);
+				// A worker that somehow misses the end of the export should not keep
+				// the JVM alive, no more than the temporary writer thread does
+				worker.setDaemon(true);
+				worker.start();
 			}
 
+			resolutionLevels:
 			for (int r = 0; r < nResolutionLevels; r++) {
 
 				int maxX = mapResToWidth.get(r);
@@ -832,13 +859,15 @@ public class OMETiffExporter<T extends NumericType<T>> {
 											break loops;
 										}
 									} else {
-										while (!computedBlocks.containsKey(key)) {
-											synchronized (tileLock) {
+										// Same as above: the condition is tested under the monitor,
+										// so the notification cancelExport sends cannot be missed
+										synchronized (tileLock) {
+											while (!computedBlocks.containsKey(key) && !isCanceled) {
 												tileLock.wait();
 											}
-											if (isCanceled) {
-												break loops;
-											}
+										}
+										if (isCanceled) {
+											break loops;
 										}
 									}
 
@@ -893,6 +922,8 @@ public class OMETiffExporter<T extends NumericType<T>> {
 					tempTileWriter.awaitDrain();
 					currentLevelWriter.close();
 				}
+				// This level's temporary file is closed: nothing is left to write
+				if (isCanceled) break resolutionLevels;
 			}
 			// Proper clean-up and handling of cancelation
 			if (nThreads == 0) { // Serial mode : the local writer needs to be closed
@@ -940,6 +971,10 @@ public class OMETiffExporter<T extends NumericType<T>> {
 				}
 			} finally {
 				if (isCanceled) {
+					// The output file is still mapped to the fast handle, and Windows
+					// does not delete a file which is open. The handle tolerates being
+					// closed twice, so the try-with-resources below can have it back
+					fastOutput.close();
 					boolean result = new File(file.getAbsolutePath()).delete();
 					if (!result) {
 						logger.warn("Cancellation: could not delete file " + file.getAbsolutePath());

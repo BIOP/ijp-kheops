@@ -31,6 +31,8 @@ public class TileIterator implements Iterator<TileIterator.IntsKey> {
 
 	final AtomicLong nTilesInQueue = new AtomicLong();
 	final int maxTilesInQueue;
+	/** Set by {@link #cancel()}: stops handing out tiles, and stops waiting */
+	volatile boolean canceled = false;
 
 	final int nr;
 	final int nt;
@@ -67,8 +69,25 @@ public class TileIterator implements Iterator<TileIterator.IntsKey> {
 		return !last;
 	}
 
+	/**
+	 * Stops the iterator: the tile currently being waited for is abandoned and
+	 * every following call to {@link #next()} returns null.
+	 * <p>
+	 * {@link #next()} waits for the writing thread to consume a tile, and it does
+	 * so while holding this iterator's monitor - so a canceled export would leave
+	 * that worker, and every other worker behind it, blocked forever, since the
+	 * writing thread has stopped calling {@link #decrementQueue()}.
+	 */
+	public void cancel() {
+		canceled = true;
+		synchronized (nTilesInQueue) {
+			nTilesInQueue.notifyAll();
+		}
+	}
+
 	@Override
 	public synchronized IntsKey next() {
+		if (canceled) return null;
 		ix++;
 		if (ix == resToNX.get(ir)) {
 			ix = 0;
@@ -97,16 +116,20 @@ public class TileIterator implements Iterator<TileIterator.IntsKey> {
 				}
 			}
 		}
-		while (nTilesInQueue.get() >= maxTilesInQueue) {
-			synchronized (nTilesInQueue) {
+		// The condition is tested under the monitor, so the notification cancel()
+		// sends cannot be missed
+		synchronized (nTilesInQueue) {
+			while ((nTilesInQueue.get() >= maxTilesInQueue) && !canceled) {
 				try {
 					nTilesInQueue.wait();
 				}
 				catch (InterruptedException e) {
-					e.printStackTrace();
+					Thread.currentThread().interrupt();
+					return null;
 				}
 			}
 		}
+		if (canceled) return null;
 		nTilesInQueue.incrementAndGet();
 		return new IntsKey(new int[] { ir, it, ic, iz, iy, ix });
 	}
